@@ -21,7 +21,7 @@ g++ -O -o add-wiki-popularity add-wiki-popularity.cc lufz-util.cc
 - Grab all of English Wikipedia (this part is essentially taken from the steps
 outlined in the [Nutrimatic project](https://github.com/egnor/nutrimatic).
 
-- Download the latest Wikipedia database dump (this is a ~18GB file!):
+- Download the latest Wikipedia database dump (this is an ~18GB file!):
 ```
 wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2
 ```
