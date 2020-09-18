@@ -59,6 +59,22 @@ g++ -O -o index-word-list index-word-list.cc lufz-util.cc
 cat importance-and-words.txt | ./index-word-list > lufz-en-lexicon.js
 ```
 
+### Indexing details
+
+The exetLexicon.index object has keys that look like 'ab???': When you want to
+look for a phrase with only some letters known, replace all unknown
+letters by '?', get rid of all spaces, lowecase the string and then look
+in index. If not found, iteratively replace the last known character
+with '?' and look up again. When you get a hit, go through it to keep it
+only if it matches the original, unmodified key.
+
+The exetLexicon.anagrams array is of length 2000. Each entry is an array
+of lexicon indices. To find anagrams of a string, lowercase it, remove
+all unknown characters and spaces, sort it (this is the "key"), take the
+JavaHash() of the key modulo 2000 (adding 2000 if negative), to find the
+shard index. Go through all entries in the shard (~100) and filter out those
+that do not have the exact same key.
+
 I wrote this code for use in the [Exet
 project](https://github.com/viresh-ratnakar/exet), which is a web app for
 crossword construction.
