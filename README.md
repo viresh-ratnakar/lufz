@@ -53,7 +53,8 @@ g++ -O -o index-word-list index-word-list.cc lufz-util.cc
   that creates an object called `exetLexicon` that has an array called
   `lexicon` of all the words, an array called `importance` containing all
   the importance scores, and an object called `index` that maps various
-  indexing keys to arrays of word indices.
+  indexing keys to arrays of word indices, and an array called anagrams
+  that is a sharded index for searching for anagrams.
 ```
 cat importance-and-words.txt | ./index-word-list > lufz-en-lexicon.js
 ```

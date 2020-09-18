@@ -21,6 +21,12 @@ std::string LowerCase(const std::string& s);
 // Return indexing key for s.
 std::string Key(const std::string& s);
 
+// Return indexing anagram key for s.
+std::string AgmKey(const std::string& s);
+
+int JavaHash(const std::string& key);
+int IndexShard(const std::string& key, int num_shards);
+
 struct PhraseAndImportance {
   std::string phrase;
   long double importance;

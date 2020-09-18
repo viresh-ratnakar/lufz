@@ -11,6 +11,9 @@ using namespace std;
 
 namespace lufz {
 
+#define AGM_INDEX_SHARDS 2000
+#define INDEX_SHARDS 2000
+
 void AddKeys(const string& phrase, int i, map<string, vector<int>>* index) {
   string basic_key = Key(phrase);
   int len = basic_key.size();
@@ -28,6 +31,14 @@ void AddKeys(const string& phrase, int i, map<string, vector<int>>* index) {
   }
 }
 
+void AddAgmKey(const string& phrase, int i,
+               vector<vector<int>>* agm_shards) {
+  string key = AgmKey(phrase);
+  int shard = IndexShard(key, AGM_INDEX_SHARDS);
+  (*agm_shards)[shard].push_back(i);
+}
+
+
 }  // namespace lufz
 
 int main(int argc, char* argv[]) {
@@ -40,9 +51,11 @@ int main(int argc, char* argv[]) {
   }
 
   map<string, vector<int>> index;
+  vector<vector<int>> agm_shards(AGM_INDEX_SHARDS);
   for (int i = 0; i < lexicon.size(); ++i) {
     const string& phrase = lexicon[i].phrase;
     AddKeys(phrase, i, &index);
+    AddAgmKey(phrase, i, &agm_shards);
     if (i > 0 && i % 1000 == 0) {
       fprintf(stderr, "Indexed line %d: %s\n", i, phrase.c_str());
     }
@@ -98,6 +111,25 @@ int main(int argc, char* argv[]) {
   fprintf(stderr, "Total #keys: %lld #phrases: %lld #distinct-phrases: %lld\n",
           total_keys, total_vals, total_distinct_phrases);
 
+  map<int, int> agm_counts;
+  int biggest_key = -1;
+  int biggest_count = 0;
+  for (int i = 0; i < AGM_INDEX_SHARDS; i++) {
+    const auto& shard = agm_shards[i];
+    int vsize = shard.size();
+    agm_counts[vsize]++;
+    if (vsize > biggest_count) {
+      biggest_key = i;
+      biggest_count = vsize;
+    }
+  }
+  for (const auto& lc : agm_counts) {
+    fprintf(stderr, "agmvalslen:%5d #keys: %3d\n", lc.first, lc.second);
+  }
+  fprintf(stderr, "Total# agm keys: %d\n", agm_shards.size());
+  fprintf(stderr, "Bulkiest key: %d [%d]\n", biggest_key, biggest_count);
+
+
   // Output the JSON object that looks this:
   // exetLexicon = {
   //   lexicon: [ "a", "the", ....],
@@ -107,6 +139,10 @@ int main(int argc, char* argv[]) {
   //     'a??': [234, 678, ...],
   //     ...
   //   },
+  //   anagrams: [
+  //     [43, 1, ...],
+  //     [43, 1, ...],
+  //   ],
   // };
   printf("exetLexicon = {\n");
   printf("  lexicon: [");
@@ -134,7 +170,17 @@ int main(int argc, char* argv[]) {
     }
     printf("\n    ],\n");
   }
-  printf("  },\n");
+  printf("  },");
+  printf("\n  anagrams: [\n");
+  for (const auto& shard : agm_shards) {
+    printf("    [");
+    for (int i = 0; i < shard.size(); ++i) {
+      if (i % 100 == 0) printf("\n      ");
+      printf("%d, ", shard[i]);
+    }
+    printf("\n    ],\n");
+  }
+  printf("  ],\n");
   printf("};\n");
 
   return 0;

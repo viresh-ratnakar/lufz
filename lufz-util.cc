@@ -61,6 +61,54 @@ string Key(const string& s) {
   return key;
 }
 
+// JavaScript for Java's hashCode:
+/*
+String.prototype.hashCode = function() {
+    var hash = 0;
+    if (this.length == 0) {
+        return hash;
+    }
+    for (var i = 0; i < this.length; i++) {
+        var char = this.charCodeAt(i);
+        hash = ((hash<<5)-hash)+char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash;
+}
+*/
+
+int JavaHash(const string& key) {
+  int hash = 0;
+  for (char c : key) {
+    hash = ((hash << 5) - hash) + c;
+  }
+  return hash;
+}
+
+int IndexShard(const string& key, int num_shards) {
+  int shard = JavaHash(key) % num_shards;
+  if (shard < 0) {
+    shard += num_shards;
+  }
+  return shard;
+}
+
+string AgmKey(const string& s) {
+  vector<char> chars;
+  for (char c : s) {
+    c = tolower(c);
+    if (c >= 'a' && c <= 'z') {
+      chars.push_back(c);
+    }
+  }
+  sort(chars.begin(), chars.end());
+  string out;
+  for (char c : chars) {
+    out += c;
+  }
+  return out;
+}
+
 bool ReadLexicon(const char* lexicon_file,
                  vector<PhraseAndImportance>* lexicon) {
   lexicon->clear();
