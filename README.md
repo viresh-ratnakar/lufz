@@ -1,5 +1,7 @@
 # Lufz
 
+## Version: 0.02
+
 ## Code for attaching importance scores to words in a lexicon and for indexing the lexicon.
 
 #### Author: Viresh Ratnakar

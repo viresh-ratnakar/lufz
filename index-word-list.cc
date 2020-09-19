@@ -132,6 +132,10 @@ int main(int argc, char* argv[]) {
 
   // Output the JSON object that looks this:
   // exetLexicon = {
+  //   id: 'en-ukacd18-lufz-v0.02',
+  //   language: 'en',
+  //   script: 'Latin',
+  //   letters: [ 'A', 'B', ... ],
   //   lexicon: [ "a", "the", ....],
   //   importance: [100, 98, ...],
   //   index: {
@@ -144,14 +148,22 @@ int main(int argc, char* argv[]) {
   //     [43, 1, ...],
   //   ],
   // };
-  printf("exetLexicon = {\n");
-  printf("  lexicon: [");
+  printf("exetLexicon = {");
+  printf("\n  id: \"en-ukacd18-lufz-v0.02\",");
+  printf("\n  language: \"en\",");
+  printf("\n  script: \"Latin\",");
+  printf("\n  letters: [");
+  for (int i = 0; i < 26; i++) {
+    printf("\"%c\", ", 'A' + i);
+  }
+  printf("],");
+  printf("\n  lexicon: [");
   for (int i = 0; i < lexicon.size(); ++i) {
     if (i % 100 == 0) printf("\n    ");
     printf("\"%s\", ", lexicon[i].phrase.c_str());
   }
   printf("\n  ],");
-  printf("  importance: [");
+  printf("\n  importance: [");
   for (int i = 0; i < lexicon.size(); ++i) {
     if (i % 100 == 0) printf("\n    ");
     if (lexicon[i].importance <= 1.0) {
