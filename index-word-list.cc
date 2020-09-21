@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
   //   ],
   // };
   printf("exetLexicon = {");
-  printf("\n  id: \"en-ukacd18-lufz-v0.02\",");
+  printf("\n  id: \"ukacd18-lufz-v0.02\",");
   printf("\n  language: \"en\",");
   printf("\n  script: \"Latin\",");
   printf("\n  letters: [");
