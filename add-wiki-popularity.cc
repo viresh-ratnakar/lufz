@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Usage: %s <lexicon-file>\n", argv[0]);
     return 1;
   }
-  vector<PhraseAndImportance> lexicon;
+  vector<PhraseInfo> lexicon;
   if (!ReadLexicon(argv[1], &lexicon)) {
     return 1;
   }
@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
   }
 
   sort(lexicon.begin(), lexicon.end(),
-       [](const PhraseAndImportance& a, const PhraseAndImportance& b) -> bool {
+       [](const PhraseInfo& a, const PhraseInfo& b) -> bool {
          return a.importance > b.importance;
        });
   for (int i = 0; i < lexicon.size(); ++i) {

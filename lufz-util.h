@@ -27,14 +27,23 @@ std::string AgmKey(const std::string& s);
 int JavaHash(const std::string& key);
 int IndexShard(const std::string& key, int num_shards);
 
-struct PhraseAndImportance {
+struct PhraseInfo {
   std::string phrase;
   long double importance;
-  PhraseAndImportance() : importance(0) {}
+  std::vector<std::string> phones;
+  PhraseInfo() : importance(0) {}
 };
 
 // Pass "-" as the file name for stdin.
-bool ReadLexicon(const char* lexicon_file,
-                 std::vector<PhraseAndImportance>* lexicon);
+bool ReadLexicon(const char* lexicon_file, std::vector<PhraseInfo>* lexicon);
+
+// Read a pronunciations file (such as the file at
+// http://svn.code.sf.net/p/cmusphinx/code/trunk/cmudict/cmudict-0.7b) and add
+// pronunciations (removing stress markers) to lexicon.
+// Format: two spaces separate the phrase from its pronunciation.
+// Example:
+// BANANA  B AH0 N AE1 N AH0
+bool AddPronunciations(const char* phones_file,
+                       std::vector<PhraseInfo>* lexicon);
 
 }  // namespace lufz

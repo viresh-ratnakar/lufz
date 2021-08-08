@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <string>
+#include <unordered_map>
 
 #include <math.h>
 #include <stdlib.h>
@@ -109,8 +110,7 @@ string AgmKey(const string& s) {
   return out;
 }
 
-bool ReadLexicon(const char* lexicon_file,
-                 vector<PhraseAndImportance>* lexicon) {
+bool ReadLexicon(const char* lexicon_file, vector<PhraseInfo>* lexicon) {
   lexicon->clear();
   FILE* fp = !strcmp(lexicon_file, "-") ? stdin : fopen(lexicon_file, "r");
   if (!fp) {
@@ -120,21 +120,21 @@ bool ReadLexicon(const char* lexicon_file,
   char buf[MAX_LINE_LENGTH];
   int num_importances_found = 0;
   while (fgets(buf, sizeof(buf), fp)) {
-    PhraseAndImportance phrase_and_importance;
+    PhraseInfo phrase_info;
     char *buf_beyond_number = NULL;
-    phrase_and_importance.importance = strtold(buf, &buf_beyond_number);
+    phrase_info.importance = strtold(buf, &buf_beyond_number);
     if (buf_beyond_number != buf) {
-      if (isnan(phrase_and_importance.importance) ||
-          isinf(phrase_and_importance.importance)) {
-        phrase_and_importance.importance = 0;
+      if (isnan(phrase_info.importance) ||
+          isinf(phrase_info.importance)) {
+        phrase_info.importance = 0;
         buf_beyond_number = buf;
       } else {
         ++num_importances_found;
       }
     }
     // If there is no preceding number, importance gets set to 0.
-    phrase_and_importance.phrase = Normalize(string(buf_beyond_number));
-    lexicon->push_back(phrase_and_importance);
+    phrase_info.phrase = Normalize(string(buf_beyond_number));
+    lexicon->push_back(phrase_info);
   }
   fclose(fp);
 
@@ -149,11 +149,87 @@ bool ReadLexicon(const char* lexicon_file,
       return false;
     }
     sort(lexicon->begin(), lexicon->end(),
-         [](const PhraseAndImportance& a, const PhraseAndImportance& b) -> bool {
+         [](const PhraseInfo& a, const PhraseInfo& b) -> bool {
            return a.importance > b.importance;
          });
   }
   return true;
 }
 
+bool AddPronunciations(const char* phones_file, vector<PhraseInfo>* lexicon) {
+  if (!lexicon) {
+    fprintf(stderr, "Null lexicon passed");
+    return false;
+  }
+  FILE* fp = fopen(phones_file, "r");
+  if (!fp) {
+    fprintf(stderr, "Could not open %s\n", phones_file);
+    return false;
+  }
+
+  unordered_map<string, vector<int>> lexicon_index;
+  for (int i = 0; i < lexicon->size(); i++) {
+    string key = LowerCase(lexicon->at(i).phrase);
+    lexicon_index[key].push_back(i);
+  }
+
+  char buf[MAX_LINE_LENGTH];
+  int num_pronunciations_used = 0;
+  int num_pronunciations_total = 0;
+  double total_phone_len = 0;
+  int max_phone_len = 0;
+  while (fgets(buf, sizeof(buf), fp)) {
+    ++num_pronunciations_total;
+    string line(buf);
+    size_t sep = line.find("  ");
+    if (sep == string::npos) {
+      fprintf(stderr, "Missing 2-space-separator in line: %s\n", buf);
+      continue;
+    }
+    string phrase_key = LowerCase(Normalize(line.substr(0, sep)));
+    if (phrase_key.empty() || phrase_key[0] < 'a' || phrase_key[0] > 'z') {
+      // Skip comment line or weird-phrase line.
+      continue;
+    }
+    // Multiple entries for a phrase have something like "(1)" at the end.
+    size_t paren = phrase_key.find('(');
+    if (paren != string::npos) {
+      phrase_key = phrase_key.substr(0, paren);
+    }
+    if (lexicon_index.find(phrase_key) == lexicon_index.end()) {
+      continue;
+    }
+    string phone = Normalize(line.substr(sep + 2));
+    string unstressed_phone;
+    for (char c : phone) {
+      if (c >= '0' && c <= '9') continue;
+      unstressed_phone += c;
+    }
+    if (unstressed_phone.empty()) {
+      fprintf(stderr, "Empty pronunciation: %s\n", buf);
+      continue;
+    }
+    if (num_pronunciations_used % 100 == 0) {
+      fprintf(stderr, "Added pronunciation [%s] for %s\n",
+          unstressed_phone.c_str(),
+          (*lexicon)[lexicon_index[phrase_key][0]].phrase.c_str());
+    }
+    ++num_pronunciations_used;
+    total_phone_len += unstressed_phone.length();
+    if (unstressed_phone.length() > max_phone_len) {
+      max_phone_len = unstressed_phone.length();
+    }
+    const vector<int>& lexicon_slots = lexicon_index[phrase_key];
+    for (int i : lexicon_slots) {
+      (*lexicon)[i].phones.push_back(unstressed_phone);
+    }
+  }
+  fclose(fp);
+
+  fprintf(stderr, "Read pronunciations file, used %d out of %d\n",
+          num_pronunciations_used, num_pronunciations_total);
+  fprintf(stderr, "Max phone len = %d, avg = %3.2f\n",
+          max_phone_len, total_phone_len / num_pronunciations_used);
+  return true;
+}
 }  // namespace lufz

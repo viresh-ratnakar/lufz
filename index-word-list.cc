@@ -13,6 +13,7 @@ namespace lufz {
 
 #define AGM_INDEX_SHARDS 2000
 #define INDEX_SHARDS 2000
+#define PHONE_INDEX_SHARDS 2000
 
 void AddKeys(const string& phrase, int i, map<string, vector<int>>* index) {
   string basic_key = Key(phrase);
@@ -44,7 +45,13 @@ void AddAgmKey(const string& phrase, int i,
 int main(int argc, char* argv[]) {
   using namespace lufz;
 
-  vector<PhraseAndImportance> lexicon;
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <cmu-pronunciations-file>\n"
+                    "(Reads lexicon from stdin)\n", argv[0]);
+    return 2;
+  }
+
+  vector<PhraseInfo> lexicon;
 
   if (!ReadLexicon("-", &lexicon)) {
     return 2;
@@ -72,6 +79,18 @@ int main(int argc, char* argv[]) {
     }
   }
   fprintf(stderr, "Post-filtering, index has size: %d\n", index.size());
+
+  if (!AddPronunciations(argv[1], &lexicon)) {
+    return 2;
+  }
+
+  vector<vector<int>> phone_shards(PHONE_INDEX_SHARDS);
+  for (int i = 0; i < lexicon.size(); ++i) {
+    for (const string& phone : lexicon[i].phones) {
+      int shard = IndexShard(phone, PHONE_INDEX_SHARDS);
+      phone_shards[shard].push_back(i);
+    }
+  }
 
   struct KeyInfoByLen {
     int num_keys;
@@ -101,7 +120,8 @@ int main(int argc, char* argv[]) {
 
   int64_t total_keys = 0, total_vals = 0, total_distinct_phrases = 0;
   for (const auto& lc : len_counts) {
-    fprintf(stderr, "len:%d #keys: %d #phrases: %d max-phrases-for-akey: %d num-distinct-phrases: %d\n",
+    fprintf(stderr, "len:%d #keys: %d #phrases: %d "
+                    "max-phrases-for-akey: %d num-distinct-phrases: %d\n",
             lc.first, lc.second.num_keys, lc.second.total_phrases,
             lc.second.max_phrases_for_a_key, lc.second.num_distinct_phrases);
     total_keys += lc.second.num_keys;
@@ -129,10 +149,9 @@ int main(int argc, char* argv[]) {
   fprintf(stderr, "Total# agm keys: %d\n", agm_shards.size());
   fprintf(stderr, "Bulkiest key: %d [%d]\n", biggest_key, biggest_count);
 
-
   // Output the JSON object that looks this:
   // exetLexicon = {
-  //   id: 'en-ukacd18-lufz-v0.02',
+  //   id: 'en-ukacd18-lufz-v0.04',
   //   language: 'en',
   //   script: 'Latin',
   //   letters: [ 'A', 'B', ... ],
@@ -146,10 +165,17 @@ int main(int argc, char* argv[]) {
   //   anagrams: [
   //     [43, 1, ...],
   //     [43, 1, ...],
+  //     ...
   //   ],
+  //   phones: [null, null, ..., ["B AH N AE N AH"], ...],
+  //   phindex: {
+  //     [42, ...],
+  //     [142,i 3232, ...],
+  //     ...
+  //   }
   // };
   printf("exetLexicon = {");
-  printf("\n  id: \"ukacd18-lufz-v0.02\",");
+  printf("\n  id: \"ukacd18-lufz-v0.04\",");
   printf("\n  language: \"en\",");
   printf("\n  script: \"Latin\",");
   printf("\n  letters: [");
@@ -192,7 +218,32 @@ int main(int argc, char* argv[]) {
     }
     printf("\n    ],\n");
   }
-  printf("  ],\n");
+  printf("  ],");
+  printf("\n  phones: [");
+  for (int i = 0; i < lexicon.size(); ++i) {
+    if (i % 100 == 0) printf("\n    ");
+    if (lexicon[i].phones.empty()) {
+      printf("null, ");
+      continue;
+    }
+    printf("[");
+    for (int j = 0; j < lexicon[i].phones.size(); ++j) {
+      if (j > 0) printf(",");
+      printf("\"%s\"", lexicon[i].phones[j].c_str());
+    }
+    printf("], ");
+  }
+  printf("\n  ],");
+  printf("\n  phindex: [\n");
+  for (const auto& shard : phone_shards) {
+    printf("    [");
+    for (int i = 0; i < shard.size(); ++i) {
+      if (i % 100 == 0) printf("\n      ");
+      printf("%d, ", shard[i]);
+    }
+    printf("\n    ],\n");
+  }
+  printf("  ],");
   printf("};\n");
 
   return 0;

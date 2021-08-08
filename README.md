@@ -56,9 +56,14 @@ g++ -O -o index-word-list index-word-list.cc lufz-util.cc
   `lexicon` of all the words, an array called `importance` containing all
   the importance scores, and an object called `index` that maps various
   indexing keys to arrays of word indices, and an array called anagrams
-  that is a sharded index for searching for anagrams.
+  that is a sharded index for searching for anagrams. It also has arrays
+  phones and a sharded index phindex, for pronunciations.
+- The needed parameter is the name of a file that contains pronunciations. It's
+  meant to be used with a CMU pronunciations file (you can
+  [get it here](http://svn.code.sf.net/p/cmusphinx/code/trunk/cmudict/cmudict-0.7b),
+  please follow its license instructions).
 ```
-cat importance-and-words.txt | ./index-word-list > lufz-en-lexicon.js
+cat importance-and-words.txt | ./index-word-list cmudict > lufz-en-lexicon.js
 ```
 
 ### Indexing details
@@ -76,6 +81,9 @@ all unknown characters and spaces, sort it (this is the "key"), take the
 JavaHash() of the key modulo 2000 (adding 2000 if negative), to find the
 shard index. Go through all entries in the shard (~100) and filter out those
 that do not have the exact same key.
+
+The exetLexicon.phindex array is just like the anagrams array, but is an
+index of the pronunciations.
 
 I wrote this code for use in the [Exet
 project](https://github.com/viresh-ratnakar/exet), which is a web app for
