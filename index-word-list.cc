@@ -61,6 +61,7 @@ int main(int argc, char* argv[]) {
   vector<vector<int>> agm_shards(AGM_INDEX_SHARDS);
   for (int i = 0; i < lexicon.size(); ++i) {
     const string& phrase = lexicon[i].phrase;
+    if (phrase.empty()) continue;
     AddKeys(phrase, i, &index);
     AddAgmKey(phrase, i, &agm_shards);
     if (i > 0 && i % 1000 == 0) {
@@ -151,7 +152,7 @@ int main(int argc, char* argv[]) {
 
   // Output the JSON object that looks this:
   // exetLexicon = {
-  //   id: 'en-ukacd18-lufz-v0.04',
+  //   id: 'en-ukacd18-lufz-v0.05',
   //   language: 'en',
   //   script: 'Latin',
   //   letters: [ 'A', 'B', ... ],
@@ -175,7 +176,7 @@ int main(int argc, char* argv[]) {
   //   }
   // };
   printf("exetLexicon = {");
-  printf("\n  id: \"ukacd18-lufz-v0.04\",");
+  printf("\n  id: \"ukacd18-lufz-v0.05\",");
   printf("\n  language: \"en\",");
   printf("\n  script: \"Latin\",");
   printf("\n  letters: [");

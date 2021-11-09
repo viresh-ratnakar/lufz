@@ -1,6 +1,6 @@
 # Lufz
 
-## Version: 0.02
+## Version: 0.05
 
 ## Code for attaching importance scores to words in a lexicon and for indexing the lexicon.
 
@@ -51,9 +51,15 @@ occurrence count prefixed to each line.
 g++ -O -o index-word-list index-word-list.cc lufz-util.cc
 ```
 
-- Run it on a word list. The output will be a file containing JavaScript code
-  that creates an object called `exetLexicon` that has an array called
-  `lexicon` of all the words, an array called `importance` containing all
+- Run it on a word list. But first, edit the word list to insert a furst line
+  that has a high value for importance (the number does not really matter) and
+  a space after it, encoding the empty string. This is just a simple hack to
+  ensure that the lexicon array has the useless empty string as the entry at
+  index 0 (which allows us, for example, to use negative indices for reversed
+  words/phrases in Exet).
+- The output will be a file containing JavaScript code that creates an object
+  called `exetLexicon` that has an array called `lexicon` of all the words,
+  with an empty string at index 0), an array called `importance` containing all
   the importance scores, and an object called `index` that maps various
   indexing keys to arrays of word indices, and an array called anagrams
   that is a sharded index for searching for anagrams. It also has arrays
