@@ -31,8 +31,10 @@ wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.
 - Extract the text from the articles using Wikipedia Extractor
  (this generates ~16GB of text, and can take several hours!):
 ```
-wget https://svn.code.sf.net/p/apertium/svn/trunk/apertium-tools/WikiExtractor.py
-python WikiExtractor.py enwiki-latest-pages-articles.xml.bz2
+wget https://github.com/attardi/wikiextractor/archive/refs/heads/master.zip
+unzip master.zip
+mv wikiextractor-master/wikiextractor .
+python -m wikiextractor.WikiExtractor enwiki-latest-pages-articles.xml.bz2
 ```
 This will write many files named `text/??/wiki_??`.
 
