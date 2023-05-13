@@ -1,63 +1,326 @@
-#include "lufz-util.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
+#include <set>
 #include <algorithm>
 #include <string>
 #include <unordered_map>
 
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-
-using namespace std;
+#include "lufz-utf8.h"
+#include "lufz-util.h"
 
 namespace lufz {
 
-bool AllWild(const string& s) {
-  for (char c : s) {
-    if (c != '?') return false;
+LufzUtil::LufzUtil(const std::string& config_name) {
+  if (lufz_configs.count(config_name) == 0) {
+    fprintf(stderr, "No config named %s\n", config_name.c_str());
+    exit(0);
+  }
+  LufzUTF8Init();
+  config_ = &lufz_configs.at(config_name);
+  language_ = config_->language;
+  script_ = lufz_scripts.at(config_->script);
+  for (const std::string& v : config_->vowels) {
+    letter_indices_[v] = letters_.size();
+    letters_.push_back(v);
+  }
+  for (const std::string& c : config_->consonants) {
+    letter_indices_[c] = letters_.size();
+    letters_.push_back(c);
+  }
+}
+
+std::string LufzUtil::Join(
+    const std::vector<std::string>& v,
+    const std::string& delimiter) {
+  std::string result;
+  bool first = true;
+  for (const std::string& s : v) {
+    if (!first) {
+      result += delimiter;
+    } else {
+      first = false;
+    }
+    result += s;
+  }
+  return result;
+}
+
+std::vector<std::string> LufzUtil::Split(
+    const std::string& str,
+    const std::string& delimiter) {
+  std::vector<std::string> tokens;
+  int start = 0;
+  int end = str.find(delimiter, start);
+  while (end != std::string::npos) {
+    tokens.push_back(str.substr(start, end - start));
+    start = end + delimiter.length();
+    end = str.find(delimiter, start);
+  }
+  tokens.push_back(str.substr(start));
+  return tokens;
+}
+
+bool LufzUtil::EndsWith(const std::string& str, const std::string& suffix) {
+  if (suffix.length() > str.length()) {
+    return false;
+  }
+  int suffixIndex = str.length() - suffix.length();
+  for (int i = 0; i < suffix.length(); i++) {
+    if (str[suffixIndex + i] != suffix[i]) {
+      return false;
+    }
   }
   return true;
 }
 
-string Normalize(const string& s) {
-  string out;
-  for (char c : s) {
-    char lc = tolower(c);
-    if (lc >= 'a' && lc <= 'z') {
-      out += c;
-    } else if ((c == ' ' || c == '\t') &&
-               (out.size() > 0 && out.back() != ' ')) {
-      out += ' ';
-    } else if (c == '-' || c == '\'') {
-      out += c;
-    } else if ((c == ',' || c == '!' || c == '?' || c == '.') &&
-               (out.size() > 0 && out.back() != ' ')) {
-      out += ' ';
-    }
-  }
-  while (out.size() > 0 && out.back() == ' ') {
-    out.pop_back();
-  }
-  return out;
-}
+#define MAX_CHARS_IN_LETTER 8
 
-string LowerCase(const string& s) {
-  string out;
-  for (char c : s) {
-    out += tolower(c);
-  }
-  return out;
-}
-
-string Key(const string& s) {
-  string key;
+std::vector<std::string> LufzUtil::PartsOf(const std::string& s, bool map_spaces) {
+  /** Apply conversions */
+  std::string s_converted;
   int i = 0;
-  for (char c : s) {
-    c = tolower(c);
-    if (c >= 'a' && c <= 'z') {
-      key += (i < WILDIZE_ALL_BEYOND) ? c : '?';
+  while (i < s.length()) {
+    std::string from, to;
+    for (const auto& a_to_b : config_->conversions) {
+      const std::string& a = a_to_b.first;
+      const std::string& b = a_to_b.second;
+      if (s.substr(i, a.length()) == a) {
+        from = a;
+        to = b;
+        break;
+      }
+    }
+    if (from.length() > 0) {
+      s_converted += to;
+      i += from.length();
+    } else {
+      s_converted += s.substr(i, 1);
       i++;
     }
+  }
+
+  std::string s_converted_spaced;
+  if (map_spaces) {
+    /** Replace spaces */
+    i = 0;
+    while (i < s_converted.length()) {
+      std::string from, to;
+      for (const auto& sp : config_->spaces) {
+        if (s_converted.substr(i, sp.length()) == sp) {
+          from = sp;
+          to = " ";
+          break;
+        }
+      }
+      if (from.length() > 0) {
+        i += from.length();
+      } else {
+        to = s_converted.substr(i, 1);
+        i++;
+      }
+      s_converted_spaced += to;
+    }
+  } else {
+    s_converted_spaced = s_converted;
+  }
+
+  std::vector<std::string> chars = LufzUTF8Chars(s_converted_spaced);
+  if (config_->script == LATIN) {
+    /**
+     * Try removing diacritics from chars that are not in the letter
+     * set.
+     */
+    for (int j = 0; j < chars.size(); j++) {
+      const std::string& chr = chars[j];
+      if (IsLetter(chr)) {
+        continue;
+      }
+      if (lufz_utf8chars.count(chr) > 0) {
+        std::string mapped_char = lufz_utf8chars.at(chr).latin_char;
+        if (IsLetter(mapped_char)) {
+          chars[j] = mapped_char;
+        }
+      }
+    }
+  }
+
+  std::vector<std::string> parts;
+  i = 0;
+  while (i < chars.size()) {
+    std::string part;
+    int num_chars = 0;
+    for (int l = MAX_CHARS_IN_LETTER; l >= 1; l--) {
+      if (i + l > chars.size()) continue;
+      std::vector<std::string> part_chars;
+      for (int j = i; j < i + l; j++) {
+        part_chars.push_back(chars[j]);
+      }
+      if (IsLetter(part_chars)) {
+        num_chars = l;
+        part = Join(part_chars);
+        break;
+      }
+    }
+    if (num_chars == 0) {
+      num_chars = 1;
+      part = chars[i];
+    }
+    i += num_chars;
+    /** Avoid leading and consecutive spaces */
+    if (part == " " &&
+        (parts.size() == 0 || parts[parts.size() - 1] == " ")) {
+      continue;
+    }
+    parts.push_back(part);
+  }
+  /** Remove trailing spaces */
+  while (parts.size() > 0 && parts[parts.size() - 1] == " ") {
+    parts.pop_back();
+  }
+  return parts;
+}
+
+std::vector<std::string> LufzUtil::PrunedPartsOf(
+    const std::string& s,
+    std::vector<std::string>* parts_of) {
+  std::vector<std::string> result;
+  std::vector<std::string> parts;
+  if (parts_of == nullptr) {
+    parts_of = &parts;
+  }
+  *parts_of = PartsOf(s);
+  for (const std::string& part : *parts_of) {
+    if (IsLetter(part) || IsPunctuation(part) ||
+        ((part == " ") &&
+         result.size() > 0 && result[result.size() - 1] != " ")) {
+      /** Note that we trim away spaces from the front and repeated spaces. */
+      result.push_back(part);
+    }
+  }
+  /** Remove trailing spaces */
+  while (result.size() > 0 && result[result.size() - 1] == " ") {
+    result.pop_back();
+  }
+  return result;
+}
+
+std::vector<std::string> LufzUtil::LetterizedPrunedPartsOf(
+    const std::string& s,
+    std::vector<std::string>* parts_of,
+    std::vector<std::string>* pruned_parts_of) {
+  std::vector<std::string> result;
+  std::vector<std::string> parts;
+  if (parts_of == nullptr) {
+    parts_of = &parts;
+  }
+  std::vector<std::string> pruned_parts;
+  if (pruned_parts_of == nullptr) {
+    pruned_parts_of = &pruned_parts;
+  }
+  *pruned_parts_of = PrunedPartsOf(s, parts_of);
+  for (const std::string& part : *pruned_parts_of) {
+    std::string letter;
+    if (IsLetter(part, &letter)) {
+      result.push_back(letter);
+    } else if (result.size() > 0 && result[result.size() - 1] != " ") {
+      result.push_back(" ");
+    }
+  }
+  /** Remove trailing spaces */
+  while (result.size() > 0 && result[result.size() - 1] == " ") {
+    result.pop_back();
+  }
+  return result;
+}
+
+std::vector<std::string> LufzUtil::LettersOf(
+    const std::string& s,
+    std::vector<std::string>* parts_of,
+    std::vector<std::string>* pruned_parts_of,
+    std::vector<std::string>* letterized_pruned_parts_of) {
+  std::vector<std::string> result;
+  std::vector<std::string> parts;
+  if (parts_of == nullptr) {
+    parts_of = &parts;
+  }
+  std::vector<std::string> pruned_parts;
+  if (pruned_parts_of == nullptr) {
+    pruned_parts_of = &pruned_parts;
+  }
+  std::vector<std::string> letterized_pruned_parts;
+  if (letterized_pruned_parts_of == nullptr) {
+    letterized_pruned_parts_of = &letterized_pruned_parts;
+  }
+  *letterized_pruned_parts_of =
+      LetterizedPrunedPartsOf(s, parts_of, pruned_parts_of);
+  for (const std::string& part : *letterized_pruned_parts_of) {
+    if (IsLetter(part)) {
+      result.push_back(part);
+    }
+  } 
+  return result;
+}
+
+bool LufzUtil::IsLetter(const std::vector<std::string>& chars) {
+  int num_combiners = 0;
+  for (int i = chars.size() - 1; i >= 0; i--) {
+    const std::string& chr = chars[i];
+    if (config_->combiners.count(chr) == 0) {
+      break;
+    }
+    num_combiners++;
+  }
+  std::string maybe_letter;
+  for (int i = 0; i < chars.size() - num_combiners; i++) {
+    maybe_letter += chars[i];
+  }
+  return (letter_indices_.count(maybe_letter) > 0);
+}
+
+bool LufzUtil::IsLetter(const std::string& s, std::string* letter) {
+  std::string ignored_letter;
+  if (!letter) {
+    letter = &ignored_letter;
+  }
+  if (letter_indices_.count(s) > 0) {
+    *letter = s;
+    return true;
+  }
+  std::vector<std::string> chars = LufzUTF8Chars(s);
+  for (int i = 0; i < chars.size(); i++) {
+    const std::string& chr = chars[i];
+    if (lufz_utf8chars.count(chr) > 0) {
+      chars[i] = lufz_utf8chars.at(chr).upper;
+    }
+  }
+  if (IsLetter(chars)) {
+    *letter = Join(chars);
+    return true;
+  }
+  letter->clear();
+  return false;
+}
+
+bool LufzUtil::IsPunctuation(const std::string& s) {
+  return config_->punctuations.count(s) > 0;
+}
+
+bool LufzUtil::AllWild(const std::string& s) {
+  std::vector<std::string> parts = PartsOf(s, false);
+  for (const auto& part : parts) {
+    if (part != "?") return false;
+  }
+  return true;
+}
+
+std::string LufzUtil::Key(const std::string& s) {
+  std::string key;
+  std::vector<std::string> letters = LettersOf(s);
+  for (int i = 0; i < letters.size(); i++) {
+    key += (i < WILDIZE_ALL_BEYOND) ? letters[i] : "?";
   }
   return key;
 }
@@ -78,7 +341,7 @@ String.prototype.hashCode = function() {
 }
 */
 
-int JavaHash(const string& key) {
+int LufzUtil::JavaHash(const std::string& key) {
   int hash = 0;
   for (char c : key) {
     hash = ((hash << 5) - hash) + c;
@@ -86,7 +349,7 @@ int JavaHash(const string& key) {
   return hash;
 }
 
-int IndexShard(const string& key, int num_shards) {
+int LufzUtil::IndexShard(const std::string& key, int num_shards) {
   int shard = JavaHash(key) % num_shards;
   if (shard < 0) {
     shard += num_shards;
@@ -94,24 +357,14 @@ int IndexShard(const string& key, int num_shards) {
   return shard;
 }
 
-string AgmKey(const string& s) {
-  vector<char> chars;
-  for (char c : s) {
-    c = tolower(c);
-    if (c >= 'a' && c <= 'z') {
-      chars.push_back(c);
-    }
-  }
-  sort(chars.begin(), chars.end());
-  string out;
-  for (char c : chars) {
-    out += c;
-  }
-  return out;
+std::string LufzUtil::AgmKey(const std::string& s) {
+  std::vector<std::string> letters = LettersOf(s);
+  sort(letters.begin(), letters.end());
+  return(Join(letters));
 }
 
-bool ReadLexicon(const char* lexicon_file, vector<PhraseInfo>* lexicon) {
-  lexicon->clear();
+bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const char* crossed_words_file) {
+  lexicon->phrase_infos.clear();
   FILE* fp = !strcmp(lexicon_file, "-") ? stdin : fopen(lexicon_file, "r");
   if (!fp) {
     fprintf(stderr, "Could not open %s\n", lexicon_file);
@@ -119,117 +372,146 @@ bool ReadLexicon(const char* lexicon_file, vector<PhraseInfo>* lexicon) {
   }
   char buf[MAX_LINE_LENGTH];
   int num_importances_found = 0;
-  while (fgets(buf, sizeof(buf), fp)) {
-    PhraseInfo phrase_info;
-    char *buf_beyond_number = NULL;
-    phrase_info.importance = strtold(buf, &buf_beyond_number);
-    if (buf_beyond_number != buf) {
-      if (isnan(phrase_info.importance) ||
-          isinf(phrase_info.importance)) {
-        phrase_info.importance = 0;
-        buf_beyond_number = buf;
-      } else {
-        ++num_importances_found;
+  int num_lines = 0;
+
+  std::set<std::string> crossed_words;
+  if (crossed_words_file && strlen(crossed_words_file) > 0) {
+    FILE* cfp = fopen(crossed_words_file, "r");
+    if (!cfp) {
+      fprintf(stderr, "Could not open %s\n", crossed_words_file);
+      return false;
+    }
+    while (fgets(buf, sizeof(buf), cfp)) {
+      std::string crossed_word(buf);
+      std::string normalized_crossed_word =
+          StrLetterizedPrunedPartsOf(crossed_word);
+      if (!normalized_crossed_word.empty()) {
+        crossed_words.insert(normalized_crossed_word);
       }
     }
-    // If there is no preceding number, importance gets set to 0.
-    phrase_info.phrase = Normalize(string(buf_beyond_number));
-    lexicon->push_back(phrase_info);
+    fclose(cfp);
+    fprintf(stderr, "Read %d crossed words from %s\n", crossed_words.size(), crossed_words_file);
+  }
+
+  PhraseInfo empty_string_entry;
+  empty_string_entry.base_index = 0;
+  empty_string_entry.forms = {""};
+  lexicon->phrase_infos.push_back(empty_string_entry);
+
+  std::unordered_map<std::string, int> lexicon_index;
+  int most_forms = 0;
+  int most_forms_index = 0;
+  while (fgets(buf, sizeof(buf), fp)) {
+    ++num_lines;
+    std::string line(buf);
+    std::vector<std::string> line_parts = Split(line, "\t");
+
+    long double importance = 0;
+    std::string phrase;
+
+    if (line_parts.size() == 1) {
+      phrase = line_parts[0];
+    } else if (line_parts.size() == 2) {
+      ++num_importances_found;
+      phrase = line_parts[1];
+      char *buf_beyond_number = NULL;
+      importance = strtold(line_parts[0].c_str(), &buf_beyond_number);
+      if (isnan(importance) || isinf(importance)) {
+        fprintf(stderr, "Skipping [%s] as it has a weird importance score\n", buf);
+        continue;
+      }
+    } else {
+      fprintf(stderr, "Skipping [%s] as it has %d parts (need 1 or 2)\n", buf, line_parts.size());
+      continue;
+    }
+    std::vector<std::string> parts;
+    std::vector<std::string> pruned_parts;
+    std::vector<std::string> letterized_pruned_parts;
+    std::vector<std::string> letter_parts = LettersOf(
+        phrase, &parts, &pruned_parts, &letterized_pruned_parts);
+    if (parts.empty() || parts.size() != pruned_parts.size()) {
+      fprintf(stderr, "Skipping [%s] as it has unrecognized parts\n",
+              phrase.c_str());
+      continue;
+    }
+    if (letter_parts.size() > MAX_ENTRY_LENGTH) {
+      fprintf(stderr, "Skipping [%s] as it is longer than %d\n",
+              phrase.c_str(), MAX_ENTRY_LENGTH);
+      continue;
+    }
+
+    std::string normalized = Join(letterized_pruned_parts);
+    if (crossed_words.count(normalized) > 0) {
+      fprintf(stderr, "Skipping [%s] as it's listed in crossed_words\n",
+              phrase.c_str());
+      continue;
+    }
+
+    if (lexicon_index.count(normalized) == 0) {
+      lexicon_index[normalized] = lexicon->phrase_infos.size();
+      PhraseInfo new_phrase_info;
+      new_phrase_info.normalized = normalized;
+      new_phrase_info.importance = 0;
+      lexicon->phrase_infos.push_back(new_phrase_info);
+    }
+    int index = lexicon_index.at(normalized);
+    PhraseInfo* phrase_info = &lexicon->phrase_infos[index];
+    phrase_info->forms.insert(Join(pruned_parts));
+    if (phrase_info->forms.size() > most_forms) {
+      most_forms = phrase_info->forms.size();
+      most_forms_index = index;
+    }
+    phrase_info->importance = std::max(phrase_info->importance, importance);
+
+    for (const auto& letter : letter_parts) {
+      lexicon->letters.insert(letter);
+    }
   }
   fclose(fp);
 
   fprintf(stderr, "Read lexicon of size  %d: found %d importances\n",
-          lexicon->size(), num_importances_found);
+          lexicon->phrase_infos.size(), num_importances_found);
+  fprintf(stderr, "Entry with most forms: [%s] at %d\n",
+          lexicon->phrase_infos[most_forms_index].normalized.c_str(),
+          most_forms_index);
+  for (const std::string& form : lexicon->phrase_infos[most_forms_index].forms) {
+    fprintf(stderr, "    %s\n", form.c_str());
+  }
   if (num_importances_found > 0) {
-    if (num_importances_found != lexicon->size()) {
+    if (num_importances_found != num_lines) {
       fprintf(stderr,
-              "Only %d entries had an importance value, "
+              "Only %d lines had an importance value, "
               "out of %d. Need all or none\n",
-              num_importances_found, lexicon->size());
+              num_importances_found, num_lines);
       return false;
     }
-    sort(lexicon->begin(), lexicon->end(),
+    sort(lexicon->phrase_infos.begin() + 1, lexicon->phrase_infos.end(),
          [](const PhraseInfo& a, const PhraseInfo& b) -> bool {
+           if (a.importance == b.importance) {
+             return a.normalized.length() < b.normalized.length();
+           } 
            return a.importance > b.importance;
          });
   }
+  if (lexicon->phrase_infos.size() > 1) {
+    lexicon->phrase_infos[0].importance = std::max(
+        lexicon->phrase_infos[0].importance,
+        lexicon->phrase_infos[1].importance + 1);
+  }
+  int base_index = 0;
+  for (int i = 0; i < lexicon->phrase_infos.size(); i++) {
+    lexicon->phrase_infos[i].base_index = base_index;
+    base_index += lexicon->phrase_infos[i].forms.size();
+  }
+
+  lexicon->vowels = config_->vowels;
+  lexicon->consonants = config_->consonants;
+  lexicon->combiners = config_->combiners;
+  lexicon->punctuations = config_->punctuations;
+  lexicon->spaces = config_->spaces;
+  lexicon->conversions = config_->conversions;
+
   return true;
 }
 
-bool AddPronunciations(const char* phones_file, vector<PhraseInfo>* lexicon) {
-  if (!lexicon) {
-    fprintf(stderr, "Null lexicon passed");
-    return false;
-  }
-  FILE* fp = fopen(phones_file, "r");
-  if (!fp) {
-    fprintf(stderr, "Could not open %s\n", phones_file);
-    return false;
-  }
-
-  unordered_map<string, vector<int>> lexicon_index;
-  for (int i = 0; i < lexicon->size(); i++) {
-    string key = LowerCase(lexicon->at(i).phrase);
-    lexicon_index[key].push_back(i);
-  }
-
-  char buf[MAX_LINE_LENGTH];
-  int num_pronunciations_used = 0;
-  int num_pronunciations_total = 0;
-  double total_phone_len = 0;
-  int max_phone_len = 0;
-  while (fgets(buf, sizeof(buf), fp)) {
-    ++num_pronunciations_total;
-    string line(buf);
-    size_t sep = line.find("  ");
-    if (sep == string::npos) {
-      fprintf(stderr, "Missing 2-space-separator in line: %s\n", buf);
-      continue;
-    }
-    string phrase_key = LowerCase(Normalize(line.substr(0, sep)));
-    if (phrase_key.empty() || phrase_key[0] < 'a' || phrase_key[0] > 'z') {
-      // Skip comment line or weird-phrase line.
-      continue;
-    }
-    // Multiple entries for a phrase have something like "(1)" at the end.
-    size_t paren = phrase_key.find('(');
-    if (paren != string::npos) {
-      phrase_key = phrase_key.substr(0, paren);
-    }
-    if (lexicon_index.find(phrase_key) == lexicon_index.end()) {
-      continue;
-    }
-    string phone = Normalize(line.substr(sep + 2));
-    string unstressed_phone;
-    for (char c : phone) {
-      if (c >= '0' && c <= '9') continue;
-      unstressed_phone += c;
-    }
-    if (unstressed_phone.empty()) {
-      fprintf(stderr, "Empty pronunciation: %s\n", buf);
-      continue;
-    }
-    if (num_pronunciations_used % 100 == 0) {
-      fprintf(stderr, "Added pronunciation [%s] for %s\n",
-          unstressed_phone.c_str(),
-          (*lexicon)[lexicon_index[phrase_key][0]].phrase.c_str());
-    }
-    ++num_pronunciations_used;
-    total_phone_len += unstressed_phone.length();
-    if (unstressed_phone.length() > max_phone_len) {
-      max_phone_len = unstressed_phone.length();
-    }
-    const vector<int>& lexicon_slots = lexicon_index[phrase_key];
-    for (int i : lexicon_slots) {
-      (*lexicon)[i].phones.push_back(unstressed_phone);
-    }
-  }
-  fclose(fp);
-
-  fprintf(stderr, "Read pronunciations file, used %d out of %d\n",
-          num_pronunciations_used, num_pronunciations_total);
-  fprintf(stderr, "Max phone len = %d, avg = %3.2f\n",
-          max_phone_len, total_phone_len / num_pronunciations_used);
-  return true;
-}
 }  // namespace lufz
