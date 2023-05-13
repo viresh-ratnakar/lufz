@@ -19,4 +19,4 @@ index-word-list : index-word-list.cc lufz-utf8.o lufz-util.o
 	g++ -O -o index-word-list index-word-list.cc lufz-utf8.o lufz-util.o
 
 clean :
-	rm lufz-util-test add-wiki-popularity index-word-list lufz-utf8.o lufz-util.o
+	rm lufz-util-test lufz-check-phonetics add-wiki-popularity index-word-list lufz-utf8.o lufz-util.o
