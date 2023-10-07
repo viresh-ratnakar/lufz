@@ -1,6 +1,6 @@
 # Lufz
 
-## Version: 0.06
+## Version: 0.07
 
 ## Code for attaching importance scores to words in a lexicon and for indexing the lexicon.
 
