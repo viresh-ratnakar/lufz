@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!--
+MIT License
+
+Copyright (c) 2024 Viresh Ratnakar
+
+See the full license notice in https://github.com/viresh-ratnakar/lufz/blob/master/LICENSE
+-->
+
+<script src="lufz-en-lexicon.js"></script>
+<script>
+  // Fake wink-porter2-stemmer.js's expectations of finding a "module" object.
+  const module = {};
+</script>
+<script src="wink-porter2-stemmer.js"></script>
+
+</head>
+<body>
+
+<div>
+    This loads lufz-en-lexicon.js and wink-porter2-stemmer.js from the current directory
+    and saves lufz-en-lexicon-stems-patch.js to the Downloads directory. See JavaScript console
+    for progress messages. The saved file should be pasted into lufz-en-lexicon.js
+    below the placeholder text that says:
+    <blockquote>
+    --- Paste contents of lufz-en-lexicon-stems-patch.js below. ---
+    </blockquote>
+</div>
+
+<script>
+
+function save(text, fileName) {
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.href = window.URL.createObjectURL(
+    new Blob([text], {type: 'text/plain'})
+  );
+  a.setAttribute('download', fileName);
+  a.click();
+  window.URL.revokeObjectURL(a.href);
+  document.body.removeChild(a);
+}
+
+function myStem(s) {
+  const overrides = {
+    'offing': 'off',
+    'offed': 'off',
+    'offings': 'off',
+    'inlying': 'inlier',
+    'toed': 'toe',
+    'ares': 'ares',
+    'ared': 'ared',
+    'orly': 'or',
+    'butting': 'butt',
+    'buttings': 'butt',
+    'butted': 'butt',
+    'coed': 'coed',
+    'coeds': 'coed',
+    'carly': 'car',
+    'added': 'add',
+    'adding': 'add',
+    'addedly': 'add',
+    'witness': 'witness',
+    'witnesses': 'witness',
+    'witnessed': 'witness',
+    'witnessing': 'witness',
+    'erred': 'err',
+    'erring': 'err',
+    'errings': 'err',
+    'erringly': 'err',
+    'boing': 'boing',
+    'boings': 'boing',
+    'ante': 'ante',
+    'antes': 'ante',
+    'anted': 'ante',
+    'anteing': 'ante',
+    'curly': 'curl',
+    'mummy': 'mum',
+    'purring': 'purr',
+    'purred': 'purr',
+    'purringly': 'purr',
+    'purrings': 'purr',
+    'ugli': 'ugli',
+    'uglis': 'ugli',
+    'ugly': 'ugly',
+    'uglies': 'ugly',
+    'uglied': 'ugly',
+    'uglying': 'ugly',
+    'uglyings': 'ugly',
+    'uglify': 'ugly',
+    'uglified': 'ugly',
+    'uglifying': 'ugly',
+    'uglifyings': 'ugly',
+    'uglification': 'ugly',
+    'uglifications': 'ugly',
+    'erred': 'err',
+    'girly': 'girl',
+    'girlies': 'girl',
+  };
+  const ls = s.toLowerCase();
+  if (overrides.hasOwnProperty(ls)) {
+    return overrides[ls];
+  }
+  return stem(s);
+}
+
+const n = exetLexicon.lexicon.length;
+console.log('The lexicon has ' + n + ' entries');
+
+const stems = {};
+
+let index = -1;
+for (const w of exetLexicon.lexicon) {
+  index += 1;
+  if (w.indexOf(' ') >= 0) {
+    continue;
+  }
+  if (w.indexOf('-') >= 0) {
+    continue;
+  }
+  const s = myStem(w);
+
+  if (!stems.hasOwnProperty(s)) {
+    stems[s] = [];
+  }
+  stems[s].push(index);
+}
+
+console.log('Populated stems, creating groups...');
+
+const stemGroups = Array(n);
+for (let i = 0; i < n; i++) {
+  stemGroups[i] = i;
+}
+
+for (const s in stems) {
+  const group = stems[s];
+  if (group.length <= 1) continue;
+  group.push(group[0]);
+  for (let i = 1; i < group.length; i++) {
+    const from = group[i - 1];
+    const to = group[i];
+    console.assert(stemGroups[from] == from, from, stemGroups[from]);
+    stemGroups[from] = to;
+  }
+}
+
+function getCycle(x) {
+  console.assert(x >= 0 && x < n, x, n);
+  const cycle = [x];
+  let next = stemGroups[x];
+  while (next != x) {
+    cycle.push(next);
+    next = stemGroups[next];
+    console.assert(cycle.length < 1000, cycle.length, x);
+  }
+  cycle.sort();
+  return cycle;
+}
+
+console.log('Testing that every lexicon index returns a valid cycle');
+for (let i = 0; i < n; i++) {
+  const cycle = getCycle(i);
+  console.assert(cycle.length >= 1, i);
+}
+
+console.log('Writing lufz-en-lexicon-stems-patch.js');
+let stemsText = `
+  /**
+   * This part of the code was generated through
+   * https://github.com/viresh-ratnakar/lufz/blob/master/lufz-en-lexicon-get-stems-patch.html
+   * The stemsId value ('${exetLexicon.id}') must agree with the id value near the top of
+   * the file.
+   *
+   * stems[x] points to another index in stems[], and following this chain
+   * until it returns to x reveals the full group.
+   */
+  stemsId: '${exetLexicon.id}',
+  stems: [`;
+
+for (let i = 0; i < n; i++) {
+  if ((i % 10) == 0) {
+    stemsText += `
+   `;
+  }
+  stemsText += ' ' + stemGroups[i] + ','
+}
+stemsText += `
+  ],
+`;
+save(stemsText, 'lufz-en-lexicon-stems-patch.js');
+
+console.log('Done!');
+
+</script>
+
+</body>
+</html>
