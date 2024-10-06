@@ -316,22 +316,22 @@ int main(int argc, char* argv[]) {
   //   id: 'Lufz-en-v0.08',
   //   language: 'en',
   //   script: 'Latin',
-  //   letters: [ 'A', 'B', ... ],
-  //   lexicon: [ "a", "the", ....],
+  //   letters: [ 'A','B',... ],
+  //   lexicon: [ "a","the",...],
   //   index: {
-  //     '???': [42, 390, 2234, ...],
-  //     'A??': [234, 678, ...],
+  //     '???': [42,390,2234,...],
+  //     'A??': [234,678,...],
   //     ...
   //   },
   //   anagrams: [
-  //     [43, 1, ...],
-  //     [43, 1, ...],
+  //     [43,1,...],
+  //     [43,1,...],
   //     ...
   //   ],
-  //   phones: [[], [], ..., [["B","AH","N","AE","N","AH"]], ...],
+  //   phones: [[],[],...,[["B","AH","N","AE","N","AH"]], ...],
   //   phindex: [
-  //     [42, ...],
-  //     [142,i 3232, ...],
+  //     [42,...],
+  //     [142,3232, ...],
   //     ...
   //   ],
   // };
@@ -351,7 +351,7 @@ int main(int argc, char* argv[]) {
     if (row % 100 == 0) printf("\n    ");
     const PhraseInfo& phrase_info = lexicon.phrase_infos[i];
     for (const string& form : phrase_info.forms) {
-      printf("\"%s\", ", form.c_str());
+      printf("\"%s\",", form.c_str());
       row++;
     }
   }
@@ -363,7 +363,7 @@ int main(int argc, char* argv[]) {
     for (int lex_index : kv.second) {
       if (counter % 100 == 0) printf("\n      ");
       counter++;
-      printf("%d, ", lex_index);
+      printf("%d,", lex_index);
     }
     printf("\n    ],\n");
   }
@@ -373,7 +373,7 @@ int main(int argc, char* argv[]) {
     printf("    [");
     for (int i = 0; i < shard.size(); ++i) {
       if (i % 100 == 0) printf("\n      ");
-      printf("%d, ", shard[i]);
+      printf("%d,", shard[i]);
     }
     printf("\n    ],\n");
   }
@@ -397,7 +397,7 @@ int main(int argc, char* argv[]) {
         }
         printf("]");
       }
-      printf("], ");
+      printf("],");
     }
   }
   printf("\n  ],");
@@ -408,7 +408,7 @@ int main(int argc, char* argv[]) {
     for (int idx : shard) {
       if (i % 100 == 0) printf("\n      ");
       i++;
-      printf("%d, ", idx);
+      printf("%d,", idx);
     }
     printf("\n    ],\n");
   }
