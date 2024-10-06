@@ -15,7 +15,7 @@ namespace lufz {
 const size_t MAX_LINE_LENGTH = 65536;
 const int WILDIZE_ALL_BEYOND = 10;
 const int MAX_ENTRY_LENGTH = 30;
-const std::string VERSION = "v0.07";
+const std::string VERSION = "v0.08";
 
 const int AGM_INDEX_SHARDS = 2000;
 const int INDEX_SHARDS = 2000;

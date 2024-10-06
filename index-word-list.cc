@@ -313,7 +313,7 @@ int main(int argc, char* argv[]) {
 
   // Output the JSON object that looks this:
   // exetLexicon = {
-  //   id: 'Lufz-en-v0.06',
+  //   id: 'Lufz-en-v0.08',
   //   language: 'en',
   //   script: 'Latin',
   //   letters: [ 'A', 'B', ... ],
@@ -329,11 +329,11 @@ int main(int argc, char* argv[]) {
   //     ...
   //   ],
   //   phones: [[], [], ..., [["B","AH","N","AE","N","AH"]], ...],
-  //   phindex: {
+  //   phindex: [
   //     [42, ...],
   //     [142,i 3232, ...],
   //     ...
-  //   }
+  //   ],
   // };
   printf("exetLexicon = {");
   printf("\n  id: \"Lufz-%s-%s\",",
@@ -412,7 +412,13 @@ int main(int argc, char* argv[]) {
     }
     printf("\n    ],\n");
   }
-  printf("  ],");
+  printf("  ],\n");
+  printf("  /**\n");
+  if (util.Language() == "en") {
+    printf("   * --- Paste contents of lufz-en-lexicon-stems-patch.js below. ---\n");
+    printf("   * --- Generate it using lufz-en-lexicon-get-stems-patch.html  ---\n");
+    printf("   */\n");
+  }
   printf("};\n");
 
   return 0;

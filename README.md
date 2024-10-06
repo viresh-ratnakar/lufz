@@ -30,16 +30,16 @@ wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.
 - Extract the text from the articles using Wikipedia Extractor
  (this generates ~16GB of text, and can take several hours!):
 ```
-wget https://github.com/attardi/wikiextractor/archive/refs/heads/master.zip
-unzip master.zip
-mv wikiextractor-master/wikiextractor .
-python -m wikiextractor.WikiExtractor enwiki-latest-pages-articles.xml.bz2
+wget https://raw.githubusercontent.com/apertium/WikiExtractor/master/WikiExtractor.py
+python3 WikiExtractor.py --infn enwiki-latest-pages-articles.xml.bz2
 ```
-This will write many files named `text/??/wiki_??`.
+This will write a giant file named `wiki.txt`. You may kill the extractor process
+once `wc -l wiki.txt` crosses 30,000,000 (as the next `add-wiki-popularity` step
+reads at most 30M lines).
 
 - Run `add-wiki-popularity`. This might take a couple of hours.
 ```
-find text -type f | xargs cat | ./add-wiki-popularity English words.txt > importance-and-words.tsv
+cat wiki.txt | ./add-wiki-popularity English words.txt > importance-and-words.tsv
 ```
 The created file importance-and-words.txt is a copy of words.txt with a numeric
 occurrence count prefixed to each line, with a tab character as the separator.
@@ -67,6 +67,23 @@ occurrence count prefixed to each line, with a tab character as the separator.
 ```
 ./index-word-list English importance-and-words.txt words_and_phones.tsv crossed_words.txt > lufz-en-lexicon.js
 ```
+
+## Adding stemming info for English
+
+For English, the generated lufz-en-lexicon.js file will have the lines:
+```
+  /**
+   * --- Paste contents of lufz-en-lexicon-stems-patch.js below. --- 
+   * --- Generate it using lufz-en-lexicon-get-stems-patch.html  ---
+   */
+```
+Copy over the generated file into the `stemming/` folder. Make sure that the `stemming/`
+folder also contains a copy of
+[`wink-porter2-stemmer.js`](https://github.com/winkjs/wink-porter2-stemmer/blob/master/src/wink-porter2-stemmer.js),
+and then open the HTML file in the `stemming/` folder, named
+`lufz-en-lexicon-get-stems-patch.html`, in a web browser. This will save a file named
+`lufz-en-lexicon-stems-patch.js` to the browser's Downloads folder. Copy and paste the contents of this
+downloaded file at the location identified by the above comment, into `lufz-en-lexicon.js`.
 
 ### Indexing details
 

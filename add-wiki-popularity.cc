@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
   }
 
   const int NGRAM_LIMIT = 6;
-  const int BREAK_AFTER_LINES = 25000000;
+  const int BREAK_AFTER_LINES = 30000000;
 
   int64_t num_lines = 0;
   int64_t num_doc_lines = 0;

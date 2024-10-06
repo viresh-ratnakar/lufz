@@ -403,6 +403,7 @@ bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const cha
   int most_forms_index = 0;
   while (fgets(buf, sizeof(buf), fp)) {
     ++num_lines;
+    buf[strcspn(buf, "\r\n")] = 0;  // Remove trailing newline
     std::string line(buf);
     std::vector<std::string> line_parts = Split(line, "\t");
 
