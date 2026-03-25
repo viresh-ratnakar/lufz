@@ -311,80 +311,110 @@ int main(int argc, char* argv[]) {
   fprintf(stderr, "Total# agm keys: %d\n", agm_shards.size());
   fprintf(stderr, "Bulkiest key: %d [%d]\n", biggest_key, biggest_count);
 
-  // Output the JSON object that looks this:
-  // exetLexicon = {
-  //   id: 'Lufz-en-v0.08',
-  //   language: 'en',
-  //   script: 'Latin',
-  //   letters: [ 'A','B',... ],
-  //   lexicon: [ "a","the",...],
-  //   index: {
-  //     '???': [42,390,2234,...],
-  //     'A??': [234,678,...],
+  // Output the JS for creating the exetLexicon object. We use JSON parsing
+  // as directly initializing such a large object with so many long arrays
+  // leads to stack overflow in some JavaScript engines (iPad), as of
+  // March 2026.
+  // exetLexicon = JSON.parse(`{
+  //   "id": "Lufz-en-v0.09",
+  //   "language": "en",
+  //   "script": "Latin",
+  //   "letters": [ "A","B",... ],
+  //   "lexicon": [ "a","the",...],
+  //   "index": {
+  //     "???": [42,390,2234,...],
+  //     "A??": [234,678,...],
   //     ...
   //   },
-  //   anagrams: [
+  //   "anagrams": [
   //     [43,1,...],
   //     [43,1,...],
   //     ...
   //   ],
-  //   phones: [[],[],...,[["B","AH","N","AE","N","AH"]], ...],
-  //   phindex: [
+  //   "phones": [[],[],...,[["B","AH","N","AE","N","AH"]], ...],
+  //   "phindex": [
   //     [42,...],
   //     [142,3232, ...],
   //     ...
-  //   ],
-  // };
-  printf("exetLexicon = {");
-  printf("\n  id: \"Lufz-%s-%s\",",
+  //   ]
+  // }`);
+  printf("exetLexicon = JSON.parse(`{");
+  printf("\n  \"id\": \"Lufz-%s-%s\",",
          util.Language().c_str(), VERSION.c_str());
-  printf("\n  language: \"%s\",", util.Language().c_str());
-  printf("\n  script: \"%s\",", util.Script().c_str());
-  printf("\n  letters: [");
+  printf("\n  \"language\": \"%s\",", util.Language().c_str());
+  printf("\n  \"script\": \"%s\",", util.Script().c_str());
+  printf("\n  \"letters\": [");
+  int letters_i = 0;
   for (const string& letter : lexicon.letters) {
-    printf("\"%s\", ", letter.c_str());
+    if (letters_i > 0) printf(", ");
+    ++letters_i;
+    printf("\"%s\"", letter.c_str());
   }
   printf("],");
-  printf("\n  lexicon: [");
-  int row = 0;
+  printf("\n  \"lexicon\": [\n    ");
+  int lnum = 0;
   for (int i = 0; i < lexicon.phrase_infos.size(); ++i) {
-    if (row % 100 == 0) printf("\n    ");
     const PhraseInfo& phrase_info = lexicon.phrase_infos[i];
     for (const string& form : phrase_info.forms) {
-      printf("\"%s\",", form.c_str());
-      row++;
+      if (lnum > 0) {
+        printf(",");
+        if (lnum % 100 == 0) printf("\n    ");
+      }
+      printf("\"%s\"", form.c_str());
+      lnum++;
     }
   }
   printf("\n  ],");
-  printf("\n  index: {\n");
+  printf("\n  \"index\": {\n");
+  int index_i = 0;
   for (const auto& kv : index) {
-    printf("    '%s': [", kv.first.c_str());
+    printf("    \"%s\": [\n      ", kv.first.c_str());
     int counter = 0;
     for (int lex_index : kv.second) {
-      if (counter % 100 == 0) printf("\n      ");
+      if (counter > 0) {
+        printf(",");
+        if (counter % 100 == 0) printf("\n      ");
+      }
       counter++;
-      printf("%d,", lex_index);
+      printf("%d", lex_index);
     }
-    printf("\n    ],\n");
+    printf("\n    ]");
+    ++index_i;
+    if (index_i < index.size()) {
+      printf(",");
+    }
+    printf("\n");
   }
   printf("  },");
-  printf("\n  anagrams: [\n");
+  printf("\n  \"anagrams\": [\n");
+  int shard_i = 0;
   for (const auto& shard : agm_shards) {
-    printf("    [");
+    printf("    [\n      ");
     for (int i = 0; i < shard.size(); ++i) {
-      if (i % 100 == 0) printf("\n      ");
-      printf("%d,", shard[i]);
+      if (i > 0) {
+        printf(",");
+        if (i % 100 == 0) printf("\n      ");
+      }
+      printf("%d", shard[i]);
     }
-    printf("\n    ],\n");
+    shard_i++;
+    printf("\n    ]");
+    if (shard_i < agm_shards.size()) {
+      printf(",");
+    }
+    printf("\n");
   }
   printf("  ],");
-  printf("\n  phones: [");
-  row = 0;
+  printf("\n  \"phones\": [\n    ");
+  lnum = 0;
   for (int i = 0; i < lexicon.phrase_infos.size(); ++i) {
-    if (row % 100 == 0) printf("\n    ");
     const PhraseInfo& phrase_info = lexicon.phrase_infos[i];
     for (const string& form : phrase_info.forms) {
-      row++;
+      if (lnum > 0) {
+        printf(",");
+        if (lnum % 100 == 0) printf("\n    ");
+      }
+      lnum++;
       printf("[");
       int j = 0;
       for (const vector<string>& phone : phrase_info.phones) {
@@ -397,29 +427,40 @@ int main(int argc, char* argv[]) {
         }
         printf("]");
       }
-      printf("],");
+      printf("]");
     }
   }
   printf("\n  ],");
-  printf("\n  phindex: [\n");
+  printf("\n  \"phindex\": [\n");
+  shard_i = 0;
   for (const auto& shard : phone_shards) {
-    printf("    [");
+    printf("    [\n      ");
     int i = 0;
     for (int idx : shard) {
-      if (i % 100 == 0) printf("\n      ");
+      if (i > 0) {
+        printf(",");
+        if (i % 100 == 0) printf("\n      ");
+      }
       i++;
-      printf("%d,", idx);
+      printf("%d", idx);
     }
-    printf("\n    ],\n");
+    printf("\n    ]");
+    ++shard_i;
+    if (shard_i < phone_shards.size()) {
+      printf(",");
+    }
+    printf("\n");
   }
-  printf("  ],\n");
-  printf("  /**\n");
+  printf("  ]\n");
+  printf("}`);\n");
   if (util.Language() == "en") {
-    printf("   * --- Paste contents of lufz-en-lexicon-stems-patch.js below. ---\n");
-    printf("   * --- Generate it using lufz-en-lexicon-get-stems-patch.html  ---\n");
-    printf("   */\n");
+    printf("/**\n");
+    printf(" * --- Paste contents of lufz-en-lexicon-stems-patch.js above, ---\n");
+    printf(" * ---   just above the line with the closing brace.           ---\n");
+    printf(" * --- Generate it using lufz-en-lexicon-get-stems-patch.html. ---\n");
+    printf(" * --- Delete these comment lines when done.                   ---\n");
+    printf(" */\n");
   }
-  printf("};\n");
 
   return 0;
 }
