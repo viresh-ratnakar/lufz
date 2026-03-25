@@ -47,61 +47,61 @@ function save(text, fileName) {
 }
 
 const stemOverrides = {
-    'offing': 'off',
-    'offed': 'off',
-    'offings': 'off',
-    'inlying': 'inlier',
-    'toed': 'toe',
-    'ares': 'ares',
-    'ared': 'ared',
-    'orly': 'or',
-    'butting': 'butt',
-    'buttings': 'butt',
-    'butted': 'butt',
-    'coed': 'coed',
-    'coeds': 'coed',
-    'carly': 'car',
-    'added': 'add',
-    'adding': 'add',
-    'addedly': 'add',
-    'witness': 'witness',
-    'witnesses': 'witness',
-    'witnessed': 'witness',
-    'witnessing': 'witness',
-    'erred': 'err',
-    'erring': 'err',
-    'errings': 'err',
-    'erringly': 'err',
-    'boing': 'boing',
-    'boings': 'boing',
-    'ante': 'ante',
-    'antes': 'ante',
-    'anted': 'ante',
-    'anteing': 'ante',
-    'curly': 'curl',
-    'mummy': 'mum',
-    'purring': 'purr',
-    'purred': 'purr',
-    'purringly': 'purr',
-    'purrings': 'purr',
-    'ugli': 'ugli',
-    'uglis': 'ugli',
-    'ugly': 'ugly',
-    'uglies': 'ugly',
-    'uglied': 'ugly',
-    'uglying': 'ugly',
-    'uglyings': 'ugly',
-    'uglify': 'ugly',
-    'uglified': 'ugly',
-    'uglifying': 'ugly',
-    'uglifyings': 'ugly',
-    'uglification': 'ugly',
-    'uglifications': 'ugly',
-    'erred': 'err',
-    'girly': 'girl',
-    'girlies': 'girl',
+    /** Top few are forced, hence no stem() on the rhs */
     'abiding': stem('abide'),
     'abode': stem('abide'),
+    'added': 'add',
+    'addedly': 'add',
+    'adding': 'add',
+    'ante': 'ante',
+    'anted': 'ante',
+    'antes': 'ante',
+    'ared': 'ared',
+    'anteing': 'ante',
+    'ares': 'ares',
+    'boing': 'boing',
+    'boings': 'boing',
+    'butted': 'butt',
+    'butting': 'butt',
+    'buttings': 'butt',
+    'carly': 'car',
+    'coed': 'coed',
+    'coeds': 'coed',
+    'curly': 'curl',
+    'erred': 'err',
+    'erring': 'err',
+    'erringly': 'err',
+    'errings': 'err',
+    'girlies': 'girl',
+    'girly': 'girl',
+    'inlying': 'inlier',
+    'mummy': 'mum',
+    'offed': 'off',
+    'offing': 'off',
+    'offings': 'off',
+    'orly': 'or',
+    'purred': 'purr',
+    'purring': 'purr',
+    'purringly': 'purr',
+    'purrings': 'purr',
+    'toed': 'toe',
+    'ugli': 'ugli',
+    'uglied': 'ugly',
+    'uglies': 'ugly',
+    'uglification': 'ugly',
+    'uglifications': 'ugly',
+    'uglified': 'ugly',
+    'uglify': 'ugly',
+    'uglifying': 'ugly',
+    'uglifyings': 'ugly',
+    'uglis': 'ugli',
+    'ugly': 'ugly',
+    'uglying': 'ugly',
+    'uglyings': 'ugly',
+    'witness': 'witness',
+    'witnessed': 'witness',
+    'witnesses': 'witness',
+    'witnessing': 'witness',
     'are': stem('be'),
     'arisen': stem('arise'),
     'arising': stem('arise'),
@@ -510,6 +510,7 @@ const stemOverrides = {
     'undertaken': stem('undertake'),
     'undertaking': stem('undertake'),
     'undertook': stem('undertake'),
+    'unknown': stem('unknowingly'),
     'upsetting': stem('upset'),
     'upset': stem('upset'),
     'waked': stem('wake'),
@@ -611,28 +612,22 @@ for (let i = 0; i < n; i++) {
 }
 
 console.log('Writing lufz-en-lexicon-stems-patch.js');
-let stemsText = `
-  /**
-   * This part of the code was generated through
-   * https://github.com/viresh-ratnakar/lufz/blob/master/lufz-en-lexicon-get-stems-patch.html
-   * The stemsId value ('${exetLexicon.id}') must agree with the id value near the top of
-   * the file.
-   *
-   * stems[x] points to another index in stems[], and following this chain
-   * until it returns to x reveals the full group.
-   */
-  stemsId: '${exetLexicon.id}',
-  stems: [`;
+let stemsText = `  ,
+  "stemsId": "${exetLexicon.id}",
+  "stems": [
+    `;
 
 for (let i = 0; i < n; i++) {
-  if ((i % 10) == 0) {
-    stemsText += `
-    `;
+  if (i > 0) {
+    stemsText += ',';
+    if ((i % 10) == 0) {
+      stemsText += "\n    ";
+    }
   }
-  stemsText += '' + stemGroups[i] + ','
+  stemsText += '' + stemGroups[i];
 }
 stemsText += `
-  ],
+  ]
 `;
 save(stemsText, 'lufz-en-lexicon-stems-patch.js');
 
