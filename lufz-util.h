@@ -14,7 +14,7 @@ namespace lufz {
 
 const size_t MAX_LINE_LENGTH = 65536;
 const int WILDIZE_ALL_BEYOND = 10;
-const int MAX_ENTRY_LENGTH = 30;
+const int DEFAULT_MAX_ENTRY_LENGTH = 30;
 const std::string VERSION = "v0.09";
 
 const int AGM_INDEX_SHARDS = 2000;
@@ -81,7 +81,7 @@ class LufzUtil {
    *   "Portuguese"
    *   "Spanish"
    */
-  explicit LufzUtil(const std::string& config_name);
+  explicit LufzUtil(const std::string& config_name, int max_entry_length = 0);
 
   const std::string& Language() {
     return language_;
@@ -225,16 +225,20 @@ class LufzUtil {
 
   /**
    * Pass "-" as the file name for stdin.
-   * formats accepted:
+   * formats accepted (cannot mix the formats):
    *   <entry>
-   * OR (cannot mix the two formats).
+   * OR
    *   <importance>\t<entry>
+   * OR
+   *   <entry>;<importance>
    * The 0th entry created is always the empty phrase.
    * All entries that map to the same StrLetterizedPrunedPartsof() are
    * combined (but retained as different "forms" of each other. When
    * combining like this, we take the max of importance scores (if any).
    */
-  bool ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const char* crossed_words_file = nullptr);
+  bool ReadLexicon(const char* lexicon_file, Lexicon* lexicon,
+                   const char* crossed_words_file = nullptr,
+                   bool normalize_without_spaces = false);
 
  private:
   /**
@@ -248,6 +252,7 @@ class LufzUtil {
   std::string script_;
   std::vector<std::string> letters_;
   std::map<std::string, int> letter_indices_;
+  int max_entry_length_;
 };
 
 }  // namespace lufz

@@ -13,7 +13,9 @@
 
 namespace lufz {
 
-LufzUtil::LufzUtil(const std::string& config_name) {
+LufzUtil::LufzUtil(const std::string& config_name, int max_entry_length) {
+  max_entry_length_ = (max_entry_length != 0) ?
+    max_entry_length : DEFAULT_MAX_ENTRY_LENGTH;
   if (lufz_configs.count(config_name) == 0) {
     fprintf(stderr, "No config named %s\n", config_name.c_str());
     exit(0);
@@ -363,7 +365,7 @@ std::string LufzUtil::AgmKey(const std::string& s) {
   return(Join(letters));
 }
 
-bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const char* crossed_words_file) {
+bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const char* crossed_words_file, bool normalize_without_spaces) {
   lexicon->phrase_infos.clear();
   FILE* fp = !strcmp(lexicon_file, "-") ? stdin : fopen(lexicon_file, "r");
   if (!fp) {
@@ -371,7 +373,8 @@ bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const cha
     return false;
   }
   char buf[MAX_LINE_LENGTH];
-  int num_importances_found = 0;
+  int num_tabbed_importances_found = 0;
+  int num_semicolon_importances_found = 0;
   int num_lines = 0;
 
   std::set<std::string> crossed_words;
@@ -384,6 +387,8 @@ bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const cha
     while (fgets(buf, sizeof(buf), cfp)) {
       std::string crossed_word(buf);
       std::string normalized_crossed_word =
+          normalize_without_spaces ?
+          StrLettersOf(crossed_word) :
           StrLetterizedPrunedPartsOf(crossed_word);
       if (!normalized_crossed_word.empty()) {
         crossed_words.insert(normalized_crossed_word);
@@ -405,24 +410,35 @@ bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const cha
     ++num_lines;
     buf[strcspn(buf, "\r\n")] = 0;  // Remove trailing newline
     std::string line(buf);
-    std::vector<std::string> line_parts = Split(line, "\t");
+    std::vector<std::string> tab_line_parts = Split(line, "\t");
+    std::vector<std::string> semicolon_line_parts = Split(line, ";");
 
     long double importance = 0;
     std::string phrase;
 
-    if (line_parts.size() == 1) {
-      phrase = line_parts[0];
-    } else if (line_parts.size() == 2) {
-      ++num_importances_found;
-      phrase = line_parts[1];
+    if (tab_line_parts.size() == 1 && semicolon_line_parts.size() == 1) {
+      phrase = tab_line_parts[0];
+    } else if (tab_line_parts.size() == 2) {
+      ++num_tabbed_importances_found;
+      phrase = tab_line_parts[1];
       char *buf_beyond_number = NULL;
-      importance = strtold(line_parts[0].c_str(), &buf_beyond_number);
+      importance = strtold(tab_line_parts[0].c_str(), &buf_beyond_number);
+      if (isnan(importance) || isinf(importance)) {
+        fprintf(stderr, "Skipping [%s] as it has a weird importance score\n", buf);
+        continue;
+      }
+    } else if (semicolon_line_parts.size() == 2) {
+      ++num_semicolon_importances_found;
+      phrase = semicolon_line_parts[0];
+      char *buf_beyond_number = NULL;
+      importance = strtold(semicolon_line_parts[1].c_str(), &buf_beyond_number);
       if (isnan(importance) || isinf(importance)) {
         fprintf(stderr, "Skipping [%s] as it has a weird importance score\n", buf);
         continue;
       }
     } else {
-      fprintf(stderr, "Skipping [%s] as it has %d parts (need 1 or 2)\n", buf, line_parts.size());
+      fprintf(stderr, "Skipping [%s] as it has %d tabbed parts and %d ;-separated parts (need 1 or 2)\n",
+          buf, tab_line_parts.size(), semicolon_line_parts.size());
       continue;
     }
     std::vector<std::string> parts;
@@ -435,13 +451,14 @@ bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const cha
               phrase.c_str());
       continue;
     }
-    if (letter_parts.size() > MAX_ENTRY_LENGTH) {
+    if (letter_parts.size() > max_entry_length_) {
       fprintf(stderr, "Skipping [%s] as it is longer than %d\n",
-              phrase.c_str(), MAX_ENTRY_LENGTH);
+              phrase.c_str(), max_entry_length_);
       continue;
     }
 
-    std::string normalized = Join(letterized_pruned_parts);
+    std::string normalized = normalize_without_spaces ?
+        Join(letter_parts) : Join(letterized_pruned_parts);
     if (crossed_words.count(normalized) > 0) {
       fprintf(stderr, "Skipping [%s] as it's listed in crossed_words\n",
               phrase.c_str());
@@ -457,7 +474,11 @@ bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const cha
     }
     int index = lexicon_index.at(normalized);
     PhraseInfo* phrase_info = &lexicon->phrase_infos[index];
-    phrase_info->forms.insert(Join(pruned_parts));
+    std::string rejoined_parts = Join(pruned_parts);
+    if (phrase_info->forms.count(rejoined_parts) > 0) {
+      fprintf(stderr, "The form for [%s] was already in the lexicon\n", phrase.c_str());
+    }
+    phrase_info->forms.insert(rejoined_parts);
     if (phrase_info->forms.size() > most_forms) {
       most_forms = phrase_info->forms.size();
       most_forms_index = index;
@@ -470,8 +491,13 @@ bool LufzUtil::ReadLexicon(const char* lexicon_file, Lexicon* lexicon, const cha
   }
   fclose(fp);
 
-  fprintf(stderr, "Read lexicon of size  %d: found %d importances\n",
-          lexicon->phrase_infos.size(), num_importances_found);
+  fprintf(stderr, "Read lexicon of size  %d: found %d tabbed importances, %d semicolon-separated importances\n",
+          lexicon->phrase_infos.size(), num_tabbed_importances_found, num_semicolon_importances_found);
+  int num_importances_found = std::max(num_tabbed_importances_found, num_semicolon_importances_found);
+  if ((num_tabbed_importances_found + num_semicolon_importances_found) != num_importances_found) {
+    fprintf(stderr, "Only one of tabbed/semicolon-separated importances can be present\n");
+    return false;
+  }
   fprintf(stderr, "Entry with most forms: [%s] at %d\n",
           lexicon->phrase_infos[most_forms_index].normalized.c_str(),
           most_forms_index);
