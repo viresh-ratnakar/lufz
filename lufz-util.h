@@ -14,8 +14,8 @@ namespace lufz {
 
 const size_t MAX_LINE_LENGTH = 65536;
 const int WILDIZE_ALL_BEYOND = 10;
-const int DEFAULT_MAX_ENTRY_LENGTH = 30;
-const std::string VERSION = "v0.09";
+const int DEFAULT_MAX_ENTRY_LENGTH = 75;
+const std::string VERSION = "v0.10";
 
 const int AGM_INDEX_SHARDS = 2000;
 const int INDEX_SHARDS = 2000;
@@ -37,12 +37,14 @@ struct PhraseInfo {
    */
   std::set<std::string> forms;
   long double importance;
+  /** Only used in add-wiki-popularity, then folded into importance */
+  long double occurrence_count;
   /**
    * phones[k] is the kth possible pronunciation for a form.
    * It is a vector of phonemes (IPA or ARPAbet).
    */
   std::set<std::vector<std::string>> phones;
-  PhraseInfo() : base_index(-1), importance(0) {}
+  PhraseInfo() : base_index(-1), importance(0), occurrence_count(0) {}
 };
 
 struct Lexicon {

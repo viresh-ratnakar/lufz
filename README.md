@@ -1,6 +1,6 @@
 # Lufz
 
-## Version: 0.07
+## Version: 0.10
 
 ## Code for attaching importance scores to words in a lexicon and for indexing the lexicon.
 
@@ -10,6 +10,13 @@ Start with a lexicon file that is plain text file listing one word/phrase
 on each line. I have used the UKACD18 file (after editing it a bit) for
 English, and a few other sources for other languages. You can find several
 options for English at the [Qxw site](https://www.quinapalus.com/xwfaq.html).
+
+June 2026: I've now also created a "Nediger-List" word list for English,
+which uses [Will Nediger's manually curated list](https://codeberg.org/bewilderingly/Nediger-list).
+For all "Lufz" lists (my UKACD18-based lexicon, and the Hindi/Portuguese ones),
+the version number will be the same as the lufz code version. For other lists
+(such as Nediger-List, I'll use a date-based version id, such as
+"Nediger-List-v23Jun2026").
 
 Say this file is called `words.txt`.
 
@@ -47,17 +54,25 @@ occurrence count prefixed to each line, with a tab character as the separator.
 
 ## index-word-list
 
-- Run it on the `importance-and-words.tsv` file.
+- Run it on the `importance-and-words.tsv` file. It can also be run on a wordlist
+  file that has the "word or phrase;score" line format.
 - The output will be a file containing JavaScript code that creates an object
   called `exetLexicon` that has an array called `lexicon` of all the words,
-  with an empty string at index 0), an array called `importance` containing all
-  the importance scores, and an object called `index` that maps various
+  with an empty string at index 0), an object called `index` that maps various
   indexing keys to arrays of word indices, and an array called anagrams
   that is a sharded index for searching for anagrams. It also has arrays
   phones and a sharded index phindex, for pronunciations.
 - The JavaScript code specifies the full object through parsing a JSON string,
   as directly specifying the large object (with large arrays) leads to stack
   overflow on some platform (but the JSON.parse() code is more robust).
+- The output file has multiple independent "sections", each looking like this:
+  ```
+    exetLexicon = {...((typeof exetLexicon == "object" && exetLexicon) ? exetLexicon : {}), ...JSON.parse(`{
+    ...
+    }`)};
+  ```
+  This allows the output to be split into multiple independent files if needed
+  (I need the file size to be under 25 MB to host on github).
 - The needed parameter is the name of a file that contains pronunciations.
   in a simple TSV format (word\tpronunciation). The pronunciation can be
   in ARPAbet or IPA format.
@@ -66,35 +81,40 @@ occurrence count prefixed to each line, with a tab character as the separator.
   (please follow its license instructions).
 - If you don't have pronunciations available, just create an empty file.
 - The `crossed_words.txt` file can contain a list of words to avoid (such as
-  profanities or offesive words). You can pass an empty file if you do not
-  have/want such a list.
+  profanities or offesive words). You can pass an empty file or an empty-string
+  ("") as the file name  if you do not have/want such a list.
+- You can add the option `-s` to also get a "scores" array containing all the
+  importance scores. We do not do this for lufz (we just use the %ile position
+  in the sorted order), but for other wordlists, the score values themselves
+  are intended to be used in applications.
+- You can override the "id" used (I do that for non-"Lufz" word lists, such as
+  "Nediger-List") with `-i <id>`. For Lufz word lists, the id is of the form
+  "Lufz-en-v0.09" (it uses the lufz code version at its end). For
+  "Nediger List", the id is of the form "Nediger-List-v23Jun2026".
 ```
-./index-word-list English importance-and-words.txt words_and_phones.tsv crossed_words.txt > lufz-en-lexicon.js
+./index-word-list [-s] [-i <id>] English importance-and-words.txt words_and_phones.tsv crossed_words.txt > lufz-en-lexicon.js
 ```
 
 ## Adding stemming info for English
 
-For English, the generated lufz-en-lexicon.js file will have the lines:
-```
-/**
- * --- Paste contents of lufz-en-lexicon-stems-patch.js above, ---
- * ---   just above the line with the closing brace.           ---
- * --- Generate it using lufz-en-lexicon-get-stems-patch.html. ---
- * --- Delete these comment lines when done.                   ---
- */
+For English, the generated `lufz-en-lexicon.js` file needs to be supplemented
+with stemming info, generated as described below. The stemming data can be
+pasted into the same file or can be loaded separately.
 
-```
+Link or copy the following two files into the directory where you have generated
+the `lufz-en-lexicon.js` file:
 
-Link these two files into the directory where you have generated the
-lufz-en-lexicon.js file:
-
-- `stemming/lufz-en-lexicon-get-stems-patch.html`
+- `stemming/get-stems-patch.html`
 - [`stemming/wink-porter2-stemmer/wink-porter2-stemmer-master/src/wink-porter2-stemmer.js`](https://github.com/winkjs/wink-porter2-stemmer/blob/master/src/wink-porter2-stemmer.js)
 
-Open the HTML file (`lufz-en-lexicon-get-stems-patch.html`) in a web browser.
-This will save a file named `lufz-en-lexicon-stems-patch.js` to the browser's
-Downloads folder. Copy and paste the contents of this downloaded file at the
-location identified by the above comment, into `lufz-en-lexicon.js`.
+Open the HTML file (`get-stems-patch.html`) in a web browser. Specify
+the `?lex=lufz-en-lexicon` parameter to identify the lexicon file that's
+missing stemming info, without the `.js` suffix (omitting this URL param
+will make the default value of `lufz-en-lexicon` get used). This will save
+a file named `lufz-en-lexicon-stems.js` (or `<lex-url-param>-stems.js`)
+into the browser's Downloads folder. Copy and paste the contents of this
+downloaded file at the bottom of `lufz-en-lexicon.js` (or load it separately,
+listing both file names within `exetConfig` (see `exet.html`).
 
 ### Indexing details
 
@@ -118,4 +138,30 @@ index of the pronunciations.
 I wrote this code for use in the [Exet
 project](https://github.com/viresh-ratnakar/exet), which is a web app for
 crossword construction.
+
+## lufz-diff
+
+This is a simple tool to generate the diffs between two wordlists. The
+wordlists can contain just lines with words/phrases, or the can have the
+line format "score[tab]word-or-phrase", or the line format
+"word-or-phrase;score".
+
+```
+./lufz-diff English list1 list2 > diffs.txt
+```
+
+You can filter four distinct component files from the diff file:
+
+```
+$ grep '\[Only-in-1\]' diffs.txt | sed 's/.*\]//' > diff-only-in-1.txt
+$ grep '\[Only-in-1-in-this-form\]' diffs.txt | sed 's/.*\]//' > diff-only-in-1-in-this-form.txt
+$ grep '\[Only-in-2\]' diffs.txt | sed 's/.*\]//' > diff-only-in-2.txt
+$ grep '\[Only-in-2-in-this-form\]' diffs.txt | sed 's/.*\]//' > diff-only-in-2-in-this-form.txt
+```
+
+The entries in `diff-only-in-1.txt` are only present on `list1`, they are
+missing from `list2` even allowing for differences in spacing/capitalization.
+The entries in `diff-only-in-1-in-this-form.txt` are only present on `list1` in
+those particular forms; they are present in `list2`, but in some other form
+(spacing/capitalization).
 

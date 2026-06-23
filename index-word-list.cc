@@ -6,6 +6,8 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "lufz-util.h"
 
@@ -105,7 +107,7 @@ bool AddPronunciations(
     fprintf(stderr, "Could not open %s\n", phones_file);
     return false;
   }
-  fprintf(stderr, "Adding proninciations from %s\n", phones_file);
+  fprintf(stderr, "Adding pronunciations from %s\n", phones_file);
 
   unordered_map<string, int> lexicon_index;
   for (int i = 0; i < lexicon->phrase_infos.size(); i++) {
@@ -165,26 +167,56 @@ bool AddPronunciations(
 
 }  // namespace lufz
 
+/**
+ * Pass -s to also emit scores.
+ * Pass -i <id> to pass an id instead of using "Lufz-<language>-<lufz-version>"
+ */
 int main(int argc, char* argv[]) {
   using namespace lufz;
+  string id;
 
-  if (argc != 5) {
-    fprintf(stderr, "Usage: %s <Language> <lexicon_file> <cmu-pronunciations-file> <crossed-words>\n",
+  bool should_write_scores = false;
+  int opt;
+  while ((opt = getopt(argc, argv, "i:s")) != -1) {
+    switch (opt) {
+      case 's':
+        should_write_scores = true;
+        break;
+      case 'i':
+        id = optarg;
+        break;
+    }
+  }
+  if (should_write_scores) {
+    fprintf(stderr, "Option -s was specified, will also write scores\n");
+  } else {
+    fprintf(stderr, "Option -s was not specified, will not write scores\n");
+  }
+
+  int argc_offset = optind - 1;
+  if (argc - argc_offset != 5) {
+    fprintf(stderr, "optind = %d\n", optind);
+    fprintf(stderr, "Usage: %s [-s] [-i <id>] <Language> <lexicon_file> <cmu-pronunciations-file> <crossed-words>\n",
             argv[0]);
     return 2;
   }
 
-  LufzUtil util(argv[1]);
+  LufzUtil util(argv[argc_offset + 1]);
   LufzUtil phone_util("Phonetics");
 
   Lexicon lexicon;
 
-  if (!util.ReadLexicon(argv[2], &lexicon, argv[4])) {
+  if (!util.ReadLexicon(argv[argc_offset + 2], &lexicon, argv[argc_offset + 4])) {
     return 2;
   }
   fprintf(stderr, "Read lexicon, have %d entries\n", lexicon.phrase_infos.size());
 
-  if (!AddPronunciations(&util, &phone_util, argv[3], &lexicon)) {
+  if (id.empty()) {
+    id = "Lufz-" + util.Language() + "-" + VERSION;
+  }
+  fprintf(stderr, "Lexicon id will be %s\n", id.c_str());
+
+  if (!AddPronunciations(&util, &phone_util, argv[argc_offset + 3], &lexicon)) {
     return 2;
   }
 
@@ -311,36 +343,55 @@ int main(int argc, char* argv[]) {
   fprintf(stderr, "Total# agm keys: %d\n", agm_shards.size());
   fprintf(stderr, "Bulkiest key: %d [%d]\n", biggest_key, biggest_count);
 
+  std::string prefix = "exetLexicon = {...((typeof exetLexicon == \"object\" && exetLexicon) ? exetLexicon : {}), ...JSON.parse(`{";
+  std::string suffix = "}`)};";
+
   // Output the JS for creating the exetLexicon object. We use JSON parsing
   // as directly initializing such a large object with so many long arrays
   // leads to stack overflow in some JavaScript engines (iPad), as of
   // March 2026.
+  //
+  // Further, we want to limit the js file size, mainly so that we can
+  // host it on github (where 25 MB is the limit). So we generate independent
+  // commands for adding some of the indices (allowing us to manually split
+  // the generated js file).
+  //
   // exetLexicon = JSON.parse(`{
+  // exetLexicon = {...((typeof exetLexicon == "object" && exetLexicon) ? exetLexicon : {}), ...JSON.parse(`{
   //   "id": "Lufz-en-v0.09",
   //   "language": "en",
   //   "script": "Latin",
   //   "letters": [ "A","B",... ],
-  //   "lexicon": [ "a","the",...],
+  //   "lexicon": [ "a","the",...]
+  // }`)};
+  // exetLexicon = {...((typeof exetLexicon == "object" && exetLexicon) ? exetLexicon : {}), ...JSON.parse(`{
   //   "index": {
   //     "???": [42,390,2234,...],
   //     "A??": [234,678,...],
   //     ...
-  //   },
+  //   }
+  // }`)};
+  // exetLexicon = {...((typeof exetLexicon == "object" && exetLexicon) ? exetLexicon : {}), ...JSON.parse(`{
   //   "anagrams": [
   //     [43,1,...],
   //     [43,1,...],
   //     ...
-  //   ],
-  //   "phones": [[],[],...,[["B","AH","N","AE","N","AH"]], ...],
-  //   "phindex": [
+  //   ]
+  // }`)};
+  // exetLexicon = {...((typeof exetLexicon == "object" && exetLexicon) ? exetLexicon : {}), ...JSON.parse(`{
+  //   "phones": [
+  //     [],[],...,[["B","AH","N","AE","N","AH"]], ...
+  //   ]
+  // }`)};
+  // exetLexicon = {...((typeof exetLexicon == "object" && exetLexicon) ? exetLexicon : {}), ...JSON.parse(`{
+  //   "phIndex": [
   //     [42,...],
   //     [142,3232, ...],
   //     ...
   //   ]
-  // }`);
-  printf("exetLexicon = JSON.parse(`{");
-  printf("\n  \"id\": \"Lufz-%s-%s\",",
-         util.Language().c_str(), VERSION.c_str());
+  // }`)};
+  printf("%s\n", prefix.c_str());
+  printf("  \"id\": \"%s\",", id.c_str());
   printf("\n  \"language\": \"%s\",", util.Language().c_str());
   printf("\n  \"script\": \"%s\",", util.Script().c_str());
   printf("\n  \"letters\": [");
@@ -364,8 +415,9 @@ int main(int argc, char* argv[]) {
       lnum++;
     }
   }
-  printf("\n  ],");
-  printf("\n  \"index\": {\n");
+  printf("\n  ]\n%s\n", suffix.c_str());
+  printf("%s\n", prefix.c_str());
+  printf("  \"index\": {\n");
   int index_i = 0;
   for (const auto& kv : index) {
     printf("    \"%s\": [\n      ", kv.first.c_str());
@@ -385,8 +437,9 @@ int main(int argc, char* argv[]) {
     }
     printf("\n");
   }
-  printf("  },");
-  printf("\n  \"anagrams\": [\n");
+  printf("  }\n%s\n", suffix.c_str());
+  printf("%s\n", prefix.c_str());
+  printf("  \"anagrams\": [\n");
   int shard_i = 0;
   for (const auto& shard : agm_shards) {
     printf("    [\n      ");
@@ -404,8 +457,9 @@ int main(int argc, char* argv[]) {
     }
     printf("\n");
   }
-  printf("  ],");
-  printf("\n  \"phones\": [\n    ");
+  printf("  ]\n%s\n", suffix.c_str());
+  printf("%s\n", prefix.c_str());
+  printf("  \"phones\": [\n    ");
   lnum = 0;
   for (int i = 0; i < lexicon.phrase_infos.size(); ++i) {
     const PhraseInfo& phrase_info = lexicon.phrase_infos[i];
@@ -430,8 +484,9 @@ int main(int argc, char* argv[]) {
       printf("]");
     }
   }
-  printf("\n  ],");
-  printf("\n  \"phindex\": [\n");
+  printf("\n  ]\n%s\n", suffix.c_str());
+  printf("%s\n", prefix.c_str());
+  printf("  \"phindex\": [\n");
   shard_i = 0;
   for (const auto& shard : phone_shards) {
     printf("    [\n      ");
@@ -451,14 +506,28 @@ int main(int argc, char* argv[]) {
     }
     printf("\n");
   }
-  printf("  ]\n");
-  printf("}`);\n");
+  printf("  ]\n%s\n", suffix.c_str());
+  if (should_write_scores) {
+    printf("%s\n", prefix.c_str());
+    printf("  \"scores\": [\n");
+    lnum = 0;
+    for (int i = 0; i < lexicon.phrase_infos.size(); ++i) {
+      const PhraseInfo& phrase_info = lexicon.phrase_infos[i];
+      for (const string& form : phrase_info.forms) {
+        if (lnum > 0) {
+          printf(",");
+          if (lnum % 100 == 0) printf("\n    ");
+        }
+        lnum++;
+        printf("%llf", phrase_info.importance);
+      }
+    }
+    printf("  ]\n%s\n", suffix.c_str());
+  }
   if (util.Language() == "en") {
     printf("/**\n");
-    printf(" * --- Paste contents of lufz-en-lexicon-stems-patch.js above, ---\n");
-    printf(" * ---   just above the line with the closing brace.           ---\n");
-    printf(" * --- Generate it using lufz-en-lexicon-get-stems-patch.html. ---\n");
-    printf(" * --- Delete these comment lines when done.                   ---\n");
+    printf(" * --- Generate stems using get-stems-patch.html. Paste the contents of     ---\n");
+    printf(" * --- <basename>-stems.js here (or load the file separately in your app).  ---\n");
     printf(" */\n");
   }
 
