@@ -95,26 +95,28 @@ occurrence count prefixed to each line, with a tab character as the separator.
 ./index-word-list [-s] [-i <id>] English importance-and-words.txt words_and_phones.tsv crossed_words.txt > lufz-en-lexicon.js
 ```
 
-## Adding stemming info for English
+## Adding stemming and regional spelling variants info for English
 
 For English, the generated `lufz-en-lexicon.js` file needs to be supplemented
-with stemming info, generated as described below. The stemming data can be
-pasted into the same file or can be loaded separately.
+with stemming and regional spelling variant sinfo, generated as described below.
+The generated data can be pasted into the same file or can be loaded separately.
 
-Link or copy the following two files into the directory where you have generated
+Link or copy the following files into the directory where you have generated
 the `lufz-en-lexicon.js` file:
 
-- `stemming/get-stems-patch.html`
+- `stemming/get-stems-and-regional-spellings.html`
+- [`exet-lexicon.js`](https://raw.githubusercontent.com/viresh-ratnakar/exet/refs/heads/master/exet-lexicon.js)
 - [`stemming/wink-porter2-stemmer/wink-porter2-stemmer-master/src/wink-porter2-stemmer.js`](https://github.com/winkjs/wink-porter2-stemmer/blob/master/src/wink-porter2-stemmer.js)
 
-Open the HTML file (`get-stems-patch.html`) in a web browser. Specify
-the `?lex=lufz-en-lexicon` parameter to identify the lexicon file that's
-missing stemming info, without the `.js` suffix (omitting this URL param
-will make the default value of `lufz-en-lexicon` get used). This will save
-a file named `lufz-en-lexicon-stems.js` (or `<lex-url-param>-stems.js`)
-into the browser's Downloads folder. Copy and paste the contents of this
-downloaded file at the bottom of `lufz-en-lexicon.js` (or load it separately,
-listing both file names within `exetConfig` (see `exet.html`).
+Open the HTML file (`get-stems-and-regional-spellings.html`) in a web browser.
+Specify the `?lex=lufz-en-lexicon` parameter to identify the English lexicon
+file that's missing stemming/regional-spellings info, without the `.js` suffix
+(omitting this URL param will make the default value of `lufz-en-lexicon` get
+used). This will save a file named `lufz-en-lexicon-stems.js` (or
+`<lex-url-param>-stems.js`) into the browser's Downloads folder. Copy and paste
+the contents of this downloaded file at the bottom of `lufz-en-lexicon.js` (or
+whatever the lexicon is named). You can also load it separately, listing both
+file names within `exetConfig` (see `exet.html`).
 
 ### Indexing details
 
