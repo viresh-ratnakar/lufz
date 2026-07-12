@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!--
+MIT License
+
+Copyright (c) 2024 Viresh Ratnakar
+
+See the full license notice in https://github.com/viresh-ratnakar/lufz/blob/master/LICENSE
+-->
+
+<script>
+  // Fake wink-porter2-stemmer.js's expectations of finding a "module" object.
+  const module = {};
+</script>
+<script src="wink-porter2-stemmer.js"></script>
+<script src="exet-lexicon.js"></script>
+
+</head>
+<body>
+
+<h2 id="heading">get-stems-and-regional-spellings.html</h2>
+
+<ul id="log">
+</ul>
+
+<script>
+
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
+const lex = urlParams.get('lex') || 'lufz-en-lexicon';
+const lexFile = lex + '.js';
+const lexStemsFile = lex + '-stems.js';
+
+const logElt = document.getElementById("log");
+
+function log(html, onlyConsole=false) {
+  console.log(html);
+  if (onlyConsole) return;
+  logElt.insertAdjacentHTML('beforeend', `<li>${html}</li>`);
+}
+
+log(`
+  This loads ${lexFile} (the file named by the URL parameter, "lex", or its
+  default value of "lufz-en-lexicon" + ".js") and wink-porter2-stemmer.js
+  from the current directory and saves ${lexStemsFile} to the Downloads
+  directory.
+`);
+log(`
+  The saved file should be pasted into ${lexFile}
+  at the bottom (or loaded separately).
+`);
+log('The whole process takes a few minutes, do grab a suitable beverage to assist with waiting. You can open the JavaScript debug console to see detailed logging...');
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.type = 'text/javascript';
+    script.async = true;
+    script.onload = () => {
+      script.remove();
+      resolve(`Successfully loaded: ${src}`);
+    };
+    script.onerror = () => {
+      script.remove();
+      reject(new Error(`Failed to load script at: ${src}`));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+loadScript(lexFile)
+  .then((message) => {
+    log(message);
+    createAndWriteStems();
+  })
+  .catch((error) => {
+    alert('Could not load ' + lexFile + ': ' + error.message);
+  });
+
+
+function save(text, fileName) {
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.href = window.URL.createObjectURL(
+    new Blob([text], {type: 'text/plain'})
+  );
+  a.setAttribute('download', fileName);
+  a.click();
+  window.URL.revokeObjectURL(a.href);
+  document.body.removeChild(a);
+}
+
+const stemOverrides = {
+    /** Some we force, hence no stem() on the rhs */
+    'abiding': stem('abide'),
+    'abode': stem('abide'),
+    'added': 'add',
+    'addedly': 'add',
+    'addenda': stem('addendum'),
+    'addendums': stem('addendum'),
+    'adding': 'add',
+    'alumnae': stem('alumna'),
+    'alumni': stem('alumnus'),
+    'amplification': stem('amplify'),
+    'analyses': stem('analysis'),
+    'ante': 'ante',
+    'anted': 'ante',
+    'anteing': 'ante',
+    'antennae': stem('antenna'),
+    'antennas': stem('antenna'),
+    'antes': 'ante',
+    'antitheses': stem('antithesis'),
+    'apices': stem('apex'),
+    'appendices': stem('appendix'),
+    'ared': 'ared',
+    'ares': 'ares',
+    'are': stem('be'),
+    'arisen': stem('arise'),
+    'arising': stem('arise'),
+    'arose': stem('arise'),
+    'ate': stem('eat'),
+    'awakening': stem('awake'),
+    'awaken': stem('awake'),
+    'awoken': stem('awake'),
+    'awoke': stem('awake'),
+    'axes': stem('axis'),
+    'bacilli': stem('bacillus'),
+    'bacteria': stem('bacterium'),
+    'bases': stem('basis'),
+    'bearing': stem('bear'),
+    'beaten': stem('beat'),
+    'beating': stem('beat'),
+    'beat': stem('beat'),
+    'beautifications': stem('beauty'),
+    'beautification': stem('beautify'),
+    'beautification': stem('beauty'),
+    'beautified': stem('beauty'),
+    'beautifies': stem('beauty'),
+    'beautify': stem('beauty'),
+    'beaux': stem('beau'),
+    'became': stem('become'),
+    'become': stem('become'),
+    'becoming': stem('become'),
+    'been': stem('be'),
+    'began': stem('begin'),
+    'begetting': stem('beget'),
+    'beginning': stem('begin'),
+    'begot': stem('beget'),
+    'begotten': stem('beget'),
+    'begun': stem('begin'),
+    'being': stem('be'),
+    'bending': stem('bend'),
+    'bent': stem('bend'),
+    'beseeching': stem('beseech'),
+    'besought': stem('beseech'),
+    'bet': stem('bet'),
+    'betting': stem('bet'),
+    'bidding': stem('bid'),
+    'bid': stem('bid'),
+    'binding': stem('bind'),
+    'biting': stem('bite'),
+    'bit': stem('bite'),
+    'bitten': stem('bite'),
+    'blacken': stem('black'),
+    'bled': stem('bleed'),
+    'bleeding': stem('bleed'),
+    'blew': stem('blow'),
+    'blowing': stem('blow'),
+    'blown': stem('blow'),
+    'boing': 'boing',
+    'boings': 'boing',
+    'bore': stem('bear'),
+    'borne': stem('bear'),
+    'born': stem('bear'),
+    'bought': stem('buy'),
+    'bound': stem('bind'),
+    'breaking': stem('break'),
+    'bred': stem('breed'),
+    'breeding': stem('breed'),
+    'bringing': stem('bring'),
+    'broadcasting': stem('broadcast'),
+    'broadcast': stem('broadcast'),
+    'broaden': stem('broad'),
+    'broken': stem('break'),
+    'broke': stem('break'),
+    'brought': stem('bring'),
+    'building': stem('build'),
+    'built': stem('build'),
+    'bureaux': stem('bureau'),
+    'burned': stem('burn'),
+    'burning': stem('burn'),
+    'burnt': stem('burn'),
+    'bursting': stem('burst'),
+    'burst': stem('burst'),
+    'butted': 'butt',
+    'butting': 'butt',
+    'buttings': 'butt',
+    'buying': stem('buy'),
+    'cacti': stem('cactus'),
+    'calcification': stem('calcify'),
+    'came': stem('come'),
+    'carly': 'car',
+    'casting': stem('cast'),
+    'cast': stem('cast'),
+    'catching': stem('catch'),
+    'caught': stem('catch'),
+    'certification': stem('certify'),
+    'chasten': stem('chaste'),
+    'chateaux': stem('chateau'),
+    'children': stem('child'),
+    'choosing': stem('choose'),
+    'chosen': stem('choose'),
+    'chose': stem('choose'),
+    'clarification': stem('clarify'),
+    'classification': stem('classify'),
+    'clinging': stem('cling'),
+    'clung': stem('cling'),
+    'codices': stem('codex'),
+    'codification': stem('codify'),
+    'coed': 'coed',
+    'coeds': 'coed',
+    'come': stem('come'),
+    'coming': stem('come'),
+    'concerti': stem('concerto'),
+    'corpora': stem('corpus'),
+    'costing': stem('cost'),
+    'cost': stem('cost'),
+    'could': stem('can'),
+    'creeping': stem('creep'),
+    'crept': stem('creep'),
+    'crises': stem('crisis'),
+    'criteria': stem('criterion'),
+    'crucification': stem('crucify'),
+    'curly': 'curl',
+    'curricula': stem('curriculum'),
+    'cut': stem('cut'),
+    'cutting': stem('cut'),
+    'dampen': stem('damp'),
+    'dared': stem('dare'),
+    'daring': stem('dare'),
+    'darken': stem('dark'),
+    'data': stem('datum'),
+    'deaden': stem('dead'),
+    'deafen': stem('deaf'),
+    'dealing': stem('deal'),
+    'dealt': stem('deal'),
+    'deepen': stem('deep'),
+    'diagnoses': stem('diagnosis'),
+    'dice': stem('die'),
+    'did': stem('do'),
+    'dies': stem('die'),
+    'digging': stem('dig'),
+    'dignification': stem('dignify'),
+    'discotheque': stem('disco'),
+    'dissatisfaction': stem('dissatisfy'),
+    'diversification': stem('diversify'),
+    'doing': stem('do'),
+    'done': stem('do'),
+    'drank': stem('drink'),
+    'drawing': stem('draw'),
+    'drawn': stem('draw'),
+    'dreamed': stem('dream'),
+    'dreaming': stem('dream'),
+    'dreamt': stem('dream'),
+    'drew': stem('draw'),
+    'drinking': stem('drink'),
+    'driven': stem('drive'),
+    'driving': stem('drive'),
+    'drove': stem('drive'),
+    'drunk': stem('drink'),
+    'dug': stem('dig'),
+    'dwarves': stem('dwarf'),
+    'dwelling': stem('dwell'),
+    'dwelt': stem('dwell'),
+    'eaten': stem('eat'),
+    'eating': stem('eat'),
+    'edification': stem('edify'),
+    'electrification': stem('electrify'),
+    'ellipses': stem('ellipsis'),
+    'emulsification': stem('emulsify'),
+    'errata': stem('erratum'),
+    'erred': 'err',
+    'erring': 'err',
+    'erringly': 'err',
+    'errings': 'err',
+    'exemplification': stem('exemplify'),
+    'fallen': stem('fall'),
+    'falling': stem('fall'),
+    'falsification': stem('falsify'),
+    'fasten': stem('fast'),
+    'fatten': stem('fat'),
+    'fed': stem('feed'),
+    'feeding': stem('feed'),
+    'feeling': stem('feel'),
+    'feet': stem('foot'),
+    'fell': stem('fall'),
+    'felt': stem('feel'),
+    'fezzes': stem('fez'),
+    'fighting': stem('fight'),
+    'finding': stem('find'),
+    'fit': stem('fit'),
+    'fitting': stem('fit'),
+    'flatten': stem('flat'),
+    'fled': stem('flee'),
+    'fleeing': stem('flee'),
+    'flew': stem('fly'),
+    'flinging': stem('fling'),
+    'flown': stem('fly'),
+    'flung': stem('fling'),
+    'flying': stem('fly'),
+    'foci': stem('focus'),
+    'forbade': stem('forbid'),
+    'forbidden': stem('forbid'),
+    'forbidding': stem('forbid'),
+    'forecasting': stem('forecast'),
+    'forecast': stem('forecast'),
+    'forgave': stem('forgive'),
+    'forgetting': stem('forget'),
+    'forgiven': stem('forgive'),
+    'forgiving': stem('forgive'),
+    'forgot': stem('forget'),
+    'forgotten': stem('forget'),
+    'formulae': stem('formula'),
+    'forsaken': stem('forsake'),
+    'forsaking': stem('forsake'),
+    'forsook': stem('forsake'),
+    'fortification': stem('fortify'),
+    'fought': stem('fight'),
+    'found': stem('find'),
+    'freezing': stem('freeze'),
+    'frozen': stem('freeze'),
+    'froze': stem('freeze'),
+    'fungi': stem('fungus'),
+    'gave': stem('give'),
+    'geese': stem('goose'),
+    'genera': stem('genus'),
+    'getting': stem('get'),
+    'girlies': 'girl',
+    'girly': 'girl',
+    'given': stem('give'),
+    'giving': stem('give'),
+    'glorification': stem('glorify'),
+    'going': stem('go'),
+    'gone': stem('go'),
+    'got': stem('get'),
+    'gotten': stem('get'),
+    'graffiti': stem('graffito'),
+    'gratification': stem('gratify'),
+    'grew': stem('grow'),
+    'grinding': stem('grind'),
+    'ground': stem('grind'),
+    'growing': stem('grow'),
+    'grown': stem('grow'),
+    'had': stem('have'),
+    'halves': stem('half'),
+    'hanging': stem('hang'),
+    'harden': stem('hard'),
+    'hasten': stem('haste'),
+    'having': stem('have'),
+    'heard': stem('hear'),
+    'hearing': stem('hear'),
+    'held': stem('hold'),
+    'hidden': stem('hide'),
+    'hiding': stem('hide'),
+    'hid': stem('hide'),
+    'hit': stem('hit'),
+    'hitting': stem('hit'),
+    'holding': stem('hold'),
+    'hooves': stem('hoof'),
+    'horrification': stem('horrify'),
+    'humidification': stem('humidify'),
+    'hung': stem('hang'),
+    'hurting': stem('hurt'),
+    'hurt': stem('hurt'),
+    'hypotheses': stem('hypothesis'),
+    'identification': stem('identify'),
+    'indemnification': stem('indemnify'),
+    'indices': stem('index'),
+    'inlying': 'inlier',
+    'intensification': stem('intensify'),
+    'is': stem('be'),
+    'justification': stem('justify'),
+    'justification': stem('justify'),
+    'keeping': stem('keep'),
+    'kept': stem('keep'),
+    'kneeling': stem('kneel'),
+    'knelt': stem('kneel'),
+    'knew': stem('know'),
+    'knives': stem('knife'),
+    'knowing': stem('know'),
+    'known': stem('know'),
+    'laded': stem('lade'),
+    'laden': stem('lade'),
+    'lading': stem('lade'),
+    'laid': stem('lay'),
+    'lain': stem('lie'),
+    'larvae': stem('larva'),
+    'laying': stem('lay'),
+    'lay': stem('lie'),
+    'leading': stem('lead'),
+    'leaned': stem('lean'),
+    'leant': stem('lean'),
+    'leaping': stem('leap'),
+    'leapt': stem('leap'),
+    'learned': stem('learn'),
+    'learning': stem('learn'),
+    'learnt': stem('learn'),
+    'leaving': stem('leave'),
+    'led': stem('lead'),
+    'left': stem('leave'),
+    'lending': stem('lend'),
+    'length': stem('long'),
+    'lent': stem('lend'),
+    'lessen': stem('less'),
+    'let': stem('let'),
+    'letting': stem('let'),
+    'libretti': stem('libretto'),
+    'lice': stem('louse'),
+    'lighted': stem('light'),
+    'lighten': stem('light'),
+    'lighting': stem('light'),
+    'liken': stem('like'),
+    'liquefaction': stem('liquefy'),
+    'lit': stem('light'),
+    'liven': stem('live'),
+    'lives': stem('life'),
+    'living': stem('life'),
+    'loaves': stem('loaf'),
+    'loci': stem('locus'),
+    'loosen;': stem('loos;'),
+    'losing': stem('lose'),
+    'lost': stem('lose'),
+    'lying': stem('lie'),
+    'made': stem('make'),
+    'magnification': stem('magnify'),
+    'making': stem('make'),
+    'matrices': stem('matrix'),
+    'meaning': stem('mean'),
+    'meant': stem('mean'),
+    'media': stem('medium'),
+    'meeting': stem('meet'),
+    'memoranda': stem('memorandum'),
+    'men': stem('man'),
+    'met': stem('meet'),
+    'mice': stem('mouse'),
+    'might': stem('may'),
+    'minification': stem('minify'),
+    'minutiae': stem('minutia'),
+    'mislaid': stem('mislay'),
+    'mislaying': stem('mislay'),
+    'mistaken': stem('mistake'),
+    'mistaking': stem('mistake'),
+    'mistook': stem('mistake'),
+    'modification': stem('modify'),
+    'moisten': stem('moist'),
+    'mollification': stem('mollify'),
+    'mortification': stem('mortify'),
+    'mowed': stem('mow'),
+    'mowing': stem('mow'),
+    'mown': stem('mow'),
+    'mummification': stem('mummify'),
+    'mummy': 'mum',
+    'mystification': stem('mystify'),
+    'nebulae': stem('nebula'),
+    'notification': stem('notify'),
+    'nuclei': stem('nucleus'),
+    'nullification': stem('nullify'),
+    'oases': stem('oasis'),
+    'offed': 'off',
+    'offing': 'off',
+    'offings': 'off',
+    'opera': stem('opus'),
+    'orly': 'or',
+    'ova': stem('ovum'),
+    'overtaken': stem('overtake'),
+    'overtook': stem('overtake'),
+    'oxen': stem('ox'),
+    'pacification': stem('pacify'),
+    'paid': stem('pay'),
+    'parentheses': stem('parenthesis'),
+    'partaken': stem('partake'),
+    'partaking': stem('partake'),
+    'partook': stem('partake'),
+    'paying': stem('pay'),
+    'personification': stem('personify'),
+    'petrification': stem('petrify'),
+    'phenomena': stem('phenomenon'),
+    'phyla': stem('phylum'),
+    'purification': stem('purify'),
+    'purred': 'purr',
+    'purringly': 'purr',
+    'purring': 'purr',
+    'purrings': 'purr',
+    'putrefaction': stem('putrefy'),
+    'put': stem('put'),
+    'putting': stem('put'),
+    'qualification': stem('qualify'),
+    'quantification': stem('quantify'),
+    'quicken': stem('quick'),
+    'quit': stem('quit'),
+    'quitting': stem('quit'),
+    'quizzes': stem('quiz'),
+    'radii': stem('radius'),
+    'ramification': stem('ramify'),
+    'rang': stem('ring'),
+    'ran': stem('run'),
+    'rarefaction': stem('rarefy'),
+    'ratification': stem('ratify'),
+    'reading': stem('read'),
+    'read': stem('read'),
+    'rectification': stem('rectify'),
+    'redden': stem('red'),
+    'referenda': stem('referendum'),
+    'ridden': stem('ride'),
+    'ridding': stem('rid'),
+    'riding': stem('ride'),
+    'rid': stem('rid'),
+    'ringing': stem('ring'),
+    'ripen': stem('ripe'),
+    'risen': stem('rise'),
+    'rising': stem('rise'),
+    'rode': stem('ride'),
+    'rose': stem('rise'),
+    'roughen': stem('rough'),
+    'rung': stem('ring'),
+    'running': stem('run'),
+    'run': stem('run'),
+    'sadden': stem('sad'),
+    'said': stem('say'),
+    'sanctification': stem('sanctify'),
+    'sang': stem('sing'),
+    'sank': stem('sink'),
+    'satisfaction': stem('satisfy'),
+    'sat': stem('sit'),
+    'sawed': stem('saw'),
+    'sawn': stem('saw'),
+    'saw': stem('see'),
+    'saying': stem('say'),
+    'scarves': stem('scarf'),
+    'seeing': stem('see'),
+    'seeking': stem('seek'),
+    'seen': stem('see'),
+    'selling': stem('sell'),
+    'selves': stem('self'),
+    'sending': stem('send'),
+    'sent': stem('send'),
+    'set': stem('set'),
+    'setting': stem('set'),
+    'sewed': stem('sew'),
+    'sewn': stem('sew'),
+    'shaken': stem('shake'),
+    'shaking': stem('shake'),
+    'sharpen': stem('sharp'),
+    'shedding': stem('shed'),
+    'shed': stem('shed'),
+    'shined': stem('shine'),
+    'shining': stem('shine'),
+    'shone': stem('shine'),
+    'shook': stem('shake'),
+    'shooting': stem('shoot'),
+    'shorten': stem('short'),
+    'shot': stem('shoot'),
+    'should': stem('shall'),
+    'showed': stem('show'),
+    'showing': stem('show'),
+    'shown': stem('show'),
+    'shrank': stem('shrink'),
+    'shrinking': stem('shrink'),
+    'shrunk': stem('shrink'),
+    'shut': stem('shut'),
+    'shutting': stem('shut'),
+    'sicken': stem('sick'),
+    'signification': stem('signify'),
+    'simplification': stem('simplify'),
+    'singing': stem('sing'),
+    'sinking': stem('sink'),
+    'sitting': stem('sit'),
+    'slacken': stem('slack'),
+    'slain': stem('slay'),
+    'slaying': stem('slay'),
+    'sleeping': stem('sleep'),
+    'slept': stem('sleep'),
+    'slew': stem('slay'),
+    'sliding': stem('slide'),
+    'slid': stem('slide'),
+    'slinging': stem('sling'),
+    'slit': stem('slit'),
+    'slitting': stem('slit'),
+    'slunk': stem('sling'),
+    'smelling': stem('smell'),
+    'smelt': stem('smell'),
+    'sodden': stem('sod'),
+    'soften': stem('soft'),
+    'sold': stem('sell'),
+    'solidification': stem('solidify'),
+    'sought': stem('seek'),
+    'sowed': stem('sow'),
+    'sowing': stem('sow'),
+    'sown': stem('sow'),
+    'spat': stem('spit'),
+    'speaking': stem('speak'),
+    'specification': stem('specify'),
+    'sped': stem('speed'),
+    'speeded': stem('speed'),
+    'speeding': stem('speed'),
+    'spelled': stem('spell'),
+    'spelling': stem('spell'),
+    'spelt': stem('spell'),
+    'spending': stem('spend'),
+    'spent': stem('spend'),
+    'spilled': stem('spill'),
+    'spilling': stem('spill'),
+    'spilt': stem('spill'),
+    'spinning': stem('spin'),
+    'spitting': stem('spit'),
+    'split': stem('split'),
+    'splitting': stem('split'),
+    'spoiling': stem('spoil'),
+    'spoilt': stem('spoil'),
+    'spoken': stem('speak'),
+    'spoke': stem('speak'),
+    'sprang': stem('spring'),
+    'spreading': stem('spread'),
+    'spread': stem('spread'),
+    'springing': stem('spring'),
+    'sprung': stem('spring'),
+    'spun': stem('spin'),
+    'standing': stem('stand'),
+    'stank': stem('stink'),
+    'stealing': stem('steal'),
+    'sticking': stem('stick'),
+    'stiffen': stem('stiff'),
+    'stimuli': stem('stimulus'),
+    'stinging': stem('sting'),
+    'stinking': stem('stink'),
+    'stolen': stem('steal'),
+    'stole': stem('steal'),
+    'stood': stem('stand'),
+    'strata': stem('stratum'),
+    'stratification': stem('stratify'),
+    'strength': stem('strong'),
+    'stricken': stem('strike'),
+    'stridden': stem('stride'),
+    'striding': stem('stride'),
+    'striking': stem('strike'),
+    'stringing': stem('string'),
+    'striven': stem('strive'),
+    'striving': stem('strive'),
+    'strode': stem('stride'),
+    'strove': stem('strive'),
+    'struck': stem('strike'),
+    'strung': stem('string'),
+    'stuck': stem('stick'),
+    'stung': stem('sting'),
+    'stunk': stem('stink'),
+    'stupefaction': stem('stupefy'),
+    'sung': stem('sing'),
+    'sunk': stem('sink'),
+    'swam': stem('swim'),
+    'swearing': stem('swear'),
+    'sweeping': stem('sweep'),
+    'sweeten': stem('sweet'),
+    'swelled': stem('swell'),
+    'swept': stem('sweep'),
+    'swimming': stem('swim'),
+    'swinging': stem('swing'),
+    'swollen': stem('swell'),
+    'swore': stem('swear'),
+    'sworn': stem('swear'),
+    'swum': stem('swim'),
+    'swung': stem('swing'),
+    'syllabi': stem('syllabus'),
+    'symposia': stem('symposium'),
+    'synopses': stem('synopsis'),
+    'tableaus': stem('tableau'),
+    'tableaux': stem('tableau'),
+    'taken': stem('take'),
+    'taking': stem('take'),
+    'taught': stem('teach'),
+    'teaching': stem('teach'),
+    'tearing': stem('tear'),
+    'teethed': stem('tooth'),
+    'teething': stem('tooth'),
+    'teeth': stem('tooth'),
+    'telling': stem('tell'),
+    'terrification': stem('terrify'),
+    'testification': stem('testify'),
+    'theses': stem('thesis'),
+    'thicken': stem('thick'),
+    'thieves': stem('thief'),
+    'thinking': stem('think'),
+    'thought': stem('think'),
+    'threaten': stem('threat'),
+    'threw': stem('throw'),
+    'throwing': stem('throw'),
+    'thrown': stem('throw'),
+    'thrusting': stem('thrust'),
+    'thrust': stem('thrust'),
+    'tighten': stem('tight'),
+    'toed': 'toe',
+    'told': stem('tell'),
+    'took': stem('take'),
+    'tore': stem('tear'),
+    'torn': stem('tear'),
+    'treading': stem('tread'),
+    'trodden': stem('tread'),
+    'trod': stem('tread'),
+    'uglied': 'ugly',
+    'uglies': 'ugly',
+    'uglifications': 'ugly',
+    'uglification': 'ugly',
+    'uglified': 'ugly',
+    'uglifyings': 'ugly',
+    'uglifying': 'ugly',
+    'uglify': 'ugly',
+    'uglis': 'ugli',
+    'ugli': 'ugli',
+    'uglyings': 'ugly',
+    'uglying': 'ugly',
+    'ugly': 'ugly',
+    'understanding': stem('understand'),
+    'understood': stem('understand'),
+    'undertaken': stem('undertake'),
+    'undertaking': stem('undertake'),
+    'undertook': stem('undertake'),
+    'unification': stem('unify'),
+    'unknown': stem('unknowingly'),
+    'upset': stem('upset'),
+    'upsetting': stem('upset'),
+    'verification': stem('verify'),
+    'vertebrae': stem('vertebra'),
+    'vertices': stem('vertex'),
+    'vitae': stem('vita'),
+    'vortices': stem('vortex'),
+    'waked': stem('wake'),
+    'waken': stem('wake'),
+    'waking': stem('wake'),
+    'was': stem('be'),
+    'weaken': stem('weak'),
+    'wearing': stem('wear'),
+    'weaving': stem('weave'),
+    'weeping': stem('weep'),
+    'went': stem('go'),
+    'wept': stem('weep'),
+    'were': stem('be'),
+    'wharves': stem('wharf'),
+    'whiten': stem('white'),
+    'widen': stem('wide'),
+    'winding': stem('wind'),
+    'winning': stem('win'),
+    'withdrawing': stem('withdraw'),
+    'withdrawn': stem('withdraw'),
+    'withdrew': stem('withdraw'),
+    'witnessed': 'witness',
+    'witnesses': 'witness',
+    'witnessing': 'witness',
+    'witness': 'witness',
+    'wives': stem('wife'),
+    'woken': stem('wake'),
+    'woke': stem('wake'),
+    'wolves': stem('wolf'),
+    'women': stem('woman'),
+    'won': stem('win'),
+    'wore': stem('wear'),
+    'worn': stem('wear'),
+    'worsen': stem('worse'),
+    'would': stem('will'),
+    'wound': stem('wind'),
+    'woven': stem('weave'),
+    'wove': stem('weave'),
+    'wringing': stem('wring'),
+    'writing': stem('write'),
+    'written': stem('write'),
+    'wrote': stem('write'),
+    'wrung': stem('wring'),
+};
+
+// ----------------------------------------
+
+const regionalVariancePatterns = {
+  /**
+   * British first. The first suffixes[0] *must* both match, and the match
+   * against its 0th entry must pass re and must not pass notRe (if they're
+   * not null).
+   */
+  ise_ize: {
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 1,
+    },
+    dontBanish: {
+      Britain: true,
+    },
+    suffixes: [
+      ['ISE', 'IZE'],
+      ['ISED', 'IZED'],
+      ['ISER', 'IZER'],
+      ['ISERS', 'IZERS'],
+      ['ISES', 'IZES'],
+      ['ISING', 'IZING'],
+      ['ISINGLY', 'IZINGLY'],
+      ['ISINGS', 'IZINGS'],
+      ['ISEABLE', 'IZEABLE'],
+      ['ISEABLY', 'IZEABLY'],
+      ['ISABLE', 'IZABLE'],
+      ['ISABLY', 'IZABLY'],
+      ['ISATION', 'IZATION'],
+      ['ISATIONS', 'IZATIONS']
+    ],
+    re: /^.*[aeiou].*[^aeiou\W_]ise$/,
+    notRe: /^.*(colourise|decolourise|vapourise|valourise)$/i  /** covered in "our_or" */
+  },
+  yse_yze: {
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 1,
+    },
+    dontBanish: {
+      Britain: true,
+    },
+    suffixes: [
+      ['YSE', 'YZE'],
+      ['YSED', 'YZED'],
+      ['YSER', 'YZER'],
+      ['YSERS', 'YZERS'],
+      ['YSES', 'YZES'],
+      ['YSING', 'YZING'],
+      ['YSINGLY', 'YZINGLY'],
+      ['YSINGS', 'YZINGS'],
+      ['YSEABLE', 'YZEABLE'],
+      ['YSEABLY', 'YZEABLY'],
+      ['YSABLE', 'YZABLE'],
+      ['YSABLY', 'YZABLY'],
+      ['YSATION', 'YZATION'],
+      ['YSATIONS', 'YZATIONS']
+    ],
+    re: /^.*[aeiou].*[^aeiou\W_]yse$/,
+    notRe: null
+  },
+  ll_l: {
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 0,
+    },
+    suffixes: [
+      ['LLING', 'LING'],
+      /**
+       * The next two rules just help expand stemming rules. Note that
+       * distiling/instiling are not words, so it's good that we don't
+       * create incorrect rules such as
+       *   distill->distil or instill->instil
+       */
+      ['LL', 'L'],
+      ['LLS', 'LS'],
+      ['LLED', 'LED'],
+      ['LLER', 'LER'],
+      ['LLERS', 'LERS'],
+      ['LLOUS', 'LOUS'],
+      ['LLOUSLY', 'LOUSLY'],
+      ['LLOUSNESS', 'LOUSNESS'],
+      ['LLMENT', 'LMENT'],
+      ['LLMENTS', 'LMENTS'],
+      ['LLINGS', 'LINGS'],
+      ['LLINGLY', 'LINGLY'],
+    ],
+    re: /^.*[aeiouy].*[aeiouy]lling$/,  /* two preceding vowel-likes */
+    notRe: /^(refilling|emballing)$/
+  },
+  nce_nse: {
+    // This only catches defence, licence, offence, pretence
+    // licence is excluded using notRe and treated in regionalVarianceExtras
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 0,
+    },
+    suffixes: [
+      ['ENCE', 'ENSE'],
+      ['ENCED', 'ENSED'],
+      ['ENCING', 'ENSING'],
+      ['ENCINGS', 'ENSINGS'],
+      ['ENCES', 'ENSES'],
+      ['ENCELESS', 'ENSELESS'],
+      ['ENCELESSLY', 'ENSELESSLY'],
+      ['ENCELESSNESS', 'ENSELESSNESS'],
+    ],
+    re: /^.*[aeiou].*[^aeiou\W_]ence$/,
+    notRe: /(dispence|licence)/,
+  },
+  our_or: {
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 0,
+    },
+    suffixes: [
+      ['OUR', 'OR'],
+      ['OURING', 'ORING'],
+      ['OURLESS', 'ORLESS'],
+      ['OURLESSLY', 'ORLESSLY'],
+      ['OURLESSNESS', 'ORLESSNESS'],
+      ['OUROUS', 'OROUS'],
+      ['OURABLE', 'ORABLE'],
+      ['OURABLY', 'ORABLY'],
+      ['OURABLES', 'ORABLES'],
+      ['OURABLENESS', 'ORABLENESS'],
+      ['OURABILITY', 'ORABILITY'],
+      ['OURS', 'ORS'],
+      ['OURHOOD', 'ORHOOD'],
+      ['OURHOODS', 'ORHOODS'],
+      ['OURED', 'ORED'],
+      ['OURER', 'ORER'],
+      ['OURINGLY', 'ORINGLY'],
+      ['OURAL', 'ORAL'],
+      ['OURALLY', 'ORALLY'],
+      ['OURY', 'ORY'],
+      ['OURIES', 'ORIES'],
+      ['OURIST', 'ORIST'],
+      ['OURISTS', 'ORISTS'],
+      ['OURITE', 'ORITE'],
+      ['OURITES', 'ORITES'],
+      ['OURITING', 'ORITINGS'],
+      ['OURIZE', 'ORIZE'],
+      ['OURISE', 'ORIZE'],
+      ['OURIZED', 'ORIZED'],
+      ['OURISED', 'ORIZED'],
+      ['OURIZES', 'ORIZES'],
+      ['OURISES', 'ORIZES'],
+      ['OURIZING', 'ORIZING'],
+      ['OURISING', 'ORIZING'],
+      ['OURIZATION', 'ORIZATION'],
+      ['OURISATION', 'ORIZATION'],
+      ['OURIZATIONS', 'ORIZATIONS'],
+      ['OURISATIONS', 'ORIZATIONS'],
+    ],
+    re: /^.*[aeiou].*([^aeiou\W_]|vi)our$/,
+    notRe: /(petit four|abat-jour|man-hour|tenour)/,
+  },
+  etre_eter: {
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 0,
+    },
+    dontBanish: {
+      Britain: ['meter', 'meters', 'metered'],
+      Canada: ['meter', 'meters', 'metered']
+    },
+    suffixes: [
+      ['ETRE', 'ETER'],
+      ['ETRES', 'ETERS'],
+      ['ETRED', 'ETERED'],
+    ],
+    re: null,
+    notRe: /(petre)/,
+  },
+  itre_iter: {
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 0,
+    },
+    suffixes: [
+      ['ITRE', 'ITER'],
+      ['ITRES', 'ITERS'],
+      ['ITRED', 'ITERED'],
+    ],
+    re: null,
+    notRe: null,
+  },
+};
+
+const regionalVarianceExtras = {
+  misc1: {
+    /** Canada aligned with Britain */
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 0,
+    },
+    groups: [
+      [
+        ['sulpha', 'sulfa'], ['sulphacetamide', 'sulfacetamide'], ['sulphadiazine', 'sulfadiazine'],
+        ['sulphadoxine', 'sulfadoxine'], ['sulphamethoxazole', 'sulfamethoxazole'], ['sulphanilamide', 'sulfanilamide'],
+        ['sulphatase', 'sulfatase'], ['sulphate', 'sulfate'], ['sulphates', 'sulfates'],
+        ['sulphathiazole', 'sulfathiazole'], ['sulphatic', 'sulfatic'], ['sulphation', 'sulfation'],
+        ['sulphhydryl', 'sulfhydryl'], ['sulphide', 'sulfide'], ['sulphides', 'sulfides'],
+        ['sulphinpyrazone', 'sulfinpyrazone'], ['sulphinyl', 'sulfinyl'], ['sulphite', 'sulfite'],
+        ['sulphites', 'sulfites'], ['sulphonamide', 'sulfonamide'], ['sulphonamides', 'sulfonamides'],
+        ['sulphonate', 'sulfonate'], ['sulphonated', 'sulfonated'], ['sulphonates', 'sulfonates'],
+        ['sulphonating', 'sulfonating'], ['sulphonation', 'sulfonation'], ['sulphone', 'sulfone'],
+        ['sulphones', 'sulfones'], ['sulphonic', 'sulfonic'], ['sulphonium', 'sulfonium'],
+        ['sulphonylurea', 'sulfonylurea'], ['sulphur', 'sulfur'], ['sulphurate', 'sulfurate'],
+        ['sulphurated', 'sulfurated'], ['sulphurates', 'sulfurates'], ['sulphurating', 'sulfurating'],
+        ['sulphuration', 'sulfuration'], ['sulphurations', 'sulfurations'], ['sulphurator', 'sulfurator'],
+        ['sulphurators', 'sulfurators'], ['sulphured', 'sulfured'], ['sulphureous', 'sulfureous'],
+        ['sulphureously', 'sulfureously'], ['sulphureousness', 'sulfureousness'], ['sulphuret', 'sulfuret'],
+        ['sulphureted', 'sulfureted'], ['sulphureting', 'sulfureting'], ['sulphurets', 'sulfurets'],
+        ['sulphuretted', 'sulfuretted'], ['sulphuretting', 'sulfuretting'], ['sulphuric', 'sulfuric'],
+        ['sulphuring', 'sulfuring'], ['sulphurisation', 'sulfurisation'], ['sulphurise', 'sulfurise'],
+        ['sulphurised', 'sulfurised'], ['sulphurises', 'sulfurises'], ['sulphurising', 'sulfurising'],
+        ['sulphurization', 'sulfurization'], ['sulphurize', 'sulfurize'], ['sulphurized', 'sulfurized'],
+        ['sulphurizes', 'sulfurizes'], ['sulphurizing', 'sulfurizing'], ['sulphurous', 'sulfurous'],
+        ['sulphurs', 'sulfurs'], ['sulphurwort', 'sulfurwort'], ['sulphurworts', 'sulfurworts'], ['sulphury', 'sulfury']
+      ],
+      [['ageing', 'aging']],
+      [['aluminium', 'aluminum']],
+      [['anaemia', 'anemia']],
+      [['axe', 'ax']],
+      [['catalogue', 'catalog'], ['catalogues', 'catalogs']],
+      [['centre', 'center'], ['centres', 'centers'], ['centred', 'centered'], ['centring', 'centering']],
+      [['camomile', 'chamomile']],
+      [['chequered', 'checkered'], ['chequering', 'checkering']],
+      [['distil', 'distill'], ['distils', 'distills']],
+      [['doughnut', 'donut'], ['doughnuts', 'donuts']],
+      [['foetid', 'fetid']],
+      [['glycerine', 'glycerin'], ['glycerines', 'glycerins']],
+      [['grey', 'gray'], ['greyed', 'grayed'], ['greys', 'grays'], ['greying', 'graying']],
+      [['haem', 'heme']],
+      [['homologue', 'homolog'], ['homologues', 'homologs']],
+      [['instil', 'instill'], ['instils', 'instills']],
+      [['jewellery', 'jewelry']],
+      [['judgement', 'judgment'], ['judgements', 'judgments']],
+      [['labour', 'labor'], ['labouring', 'laboring']],
+      [['litre', 'liter'], ['litres', 'liters']],
+      [['lodgment', 'lodgement'], ['lodgments', 'lodgements']],
+      [['manoeuvre', 'maneuver'], ['manoeuvred', 'maneuvered'], ['manoeuvres', 'maneuvers'], ['manoeuvring', 'maneuvering'], ['manoeuvrings', 'maneuverings']],
+      [['meagre', 'meager']],
+      [['mollusc', 'mollusk'], ['molluscs', 'mollusks']],
+      [['mould', 'mold'], ['moulds', 'molds'], ['moulded', 'molded'], ['moulding', 'molding'], ['mouldings', 'moldings']],
+      [['oenology', 'enology'], ['oenologist', 'enologist'], ['oenologists', 'enologists']],
+      [['omelette', 'omelet'], ['omelettes', 'omelets']],
+      [['orthopaedic', 'orthopedic'], ['orthopaedics', 'orthopedics']],
+      [['paedophile', 'pedophile'], ['paedophiles', 'pedophiles'], ['paedophilia', 'pedophilia'], ['paedophiliac', 'pedophiliac'], ['paedophiliacs', 'pedophiliacs']],
+      [['pyjamas', 'pajamas']],
+      [['sabre', 'saber'], ['sabres', 'sabers']],
+      [['sepulchre', 'sepulcher'], ['sepulchres', 'sepulchers']],
+      [['spectre', 'specter'], ['spectres', 'specters']],
+      [['skilful', 'skillful'], ['skilfully', 'skillfully'], ['skilfulness', 'skillfulness']],
+      [['theatre', 'theater'], ['theatres', 'theaters']],
+      [['wilful', 'willful'], ['wilfully', 'willfully'], ['wilfulness', 'willfulness']],
+      [['woollen', 'woolen'], ['woollens', 'woolens']],
+      [['yoghurt', 'yogurt'], ['yoghurts', 'yogurts']],
+      [['zed', 'zee']],
+    ],
+  },
+  misc2: {
+    /** Canada aligned with US */
+    regions: {
+      Britain: 0,
+      US: 1,
+      Canada: 1,
+    },
+    dontBanish: {
+      Canada: ['enquire', 'enquiry', 'enquired', 'enquires', 'enquiring'],
+    },
+    groups: [
+      [['anaesthesia', 'anesthesia'], ['anaesthetic', 'anesthetic'], ['anaesthetics', 'anesthetics']],
+      [['analogue', 'analog'], ['analogues', 'analogs']],
+      [['annexe', 'annex']],
+      [['caesium', 'cesium']],
+      [['carburettor', 'carburetor'], ['carburettors', 'carburetors']],
+      [['cosy', 'cozy'], ['cosies', 'cozies'], ['cosied', 'cozied'], ['cosying', 'cozying'], ['cosiness', 'coziness']],
+      [['diarrhoea', 'diarrhea'], ['diarrhoeas', 'diarrheas']],
+      [['chilli', 'chili'], ['chillies', 'chilies']],
+      [['clueing', 'cluing']],
+      [['encyclopaedia', 'encyclopedia'], ['encyclopaedias', 'encyclopedias']],
+      [['enquire', 'inquire'], ['enquiry', 'inquiry'], ['enquired', 'inquired'], ['enquires', 'inquires'], ['enquiring', 'inquiring']],
+      [['faeces', 'feces']],
+      [['fibre', 'fiber'], ['fibres', 'fibers'], ['fibred', 'fibered']],
+      [['flautist', 'flutist'], ['flautists', 'flutists']],
+      [['furore', 'furor'], ['furores', 'furors']],
+      [['gynaecology', 'gynecology'], ['gynaecologist', 'gynecologist'], ['gynaecologists', 'gynecologists']],
+      [['haematology', 'hematology'], ['haemophilia', 'hemophilia']],
+      [['leukaemia', 'leukemia'], ['liquorice', 'licorice']],
+      [['maths', 'math']],
+      [['moult', 'molt'], ['moulted', 'molted'], ['moults', 'molts'], ['moulting', 'molting'], ['moultings', 'moltings']],
+      [['moustache', 'mustache'], ['moustaches', 'mustaches']],
+      [['oesophagus', 'esophagus']],
+      [['oestrogen', 'estrogen']],
+      [['orthologue', 'ortholog'], ['orthologues', 'orthologs']],
+      [['paediatric', 'pediatric'], ['paediatrics', 'pediatrics'], ['paediatrician', 'pediatrician'], ['paediatricians', 'pediatricians']],
+      [['plough', 'plow'], ['ploughs', 'plows'], ['ploughed', 'plowed'], ['ploughing', 'plowing'], ['ploughings', 'plowings']],
+      [['sceptic', 'skeptic'], ['sceptics', 'skeptics']],
+      [['tranquillity', 'tranquility']],
+    ],
+  },
+  misc3: {
+    /** Britain & Canada use both versions, US only uses second */
+    regions: {
+      US: 1,
+    },
+    groups: [
+      [['cheque', 'check'], ['chequer', 'checker'], ['cheques', 'checks'], ['chequers', 'checkers']],
+      [['dreamt', 'dreamed']],
+      [['learnt', 'learned']],
+      [['practise', 'practice'], ['practised', 'practiced'], ['practises', 'practices'], ['practising', 'practicing']],
+      [['spoilt', 'spoiled']],
+      [['storey', 'story'], ['storeys', 'stories']],
+    ],
+  },
+  misc4: {
+    /** Britain uses both versions, US and Canada only use second */
+    regions: {
+      US: 1,
+      Canada: 1,
+    },
+    dontBanish: {
+      Canada: ['draught', 'draughts']
+    },
+    groups: [
+      [['artefact', 'artifact'], ['artefacts', 'artifacts']],
+      [['broncho', 'bronco'], ['bronchos', 'broncos']],
+      [['draught', 'draft'], ['draughts', 'drafts']],
+      [['kerb', 'curb'], ['kerbs', 'curbs']],
+      [['programme', 'program'], ['programmes', 'programs']],
+      [['speciality', 'specialty'], ['specialities', 'specialties']],
+      [['tyre', 'tire'], ['tyres', 'tires']],
+    ],
+  },
+  misc5: {
+    /** Britain only uses first version, US and Canada use both versions */
+    regions: {
+      Britain: 0,
+    },
+    groups: [
+      [['disc', 'disk'], ['discs', 'disks']],
+    ],
+  },
+};
+
+function getRegionalVariants() {
+  const allVariants = {};
+  
+  for (const prop in regionalVariancePatterns) {
+    const cls = regionalVariancePatterns[prop];
+    allVariants[prop] = {
+      regions: cls.regions,
+      dontBanish: cls.dontBanish || null,
+      pair_groups: []
+    };
+    for (let i = 1; i < 40; i++) {
+      const prefix = '?'.repeat(i);
+      const sfPair = cls.suffixes[0];
+      const pattern1 = prefix + sfPair[0];
+      const choices1 = exetLexicon.getLexChoices(pattern1);
+      for (let x = 0; x < choices1.length; x++) {
+        const id1 = choices1[x];
+        const entry1 = exetLexicon.lexicon[id1];
+        if (cls.re && !cls.re.test(entry1)) continue; 
+        if (cls.notRe && cls.notRe.test(entry1)) continue; 
+        const root = entry1.substr(0, i).toUpperCase();
+        const pattern2 = root + sfPair[1];
+        const choices2 = exetLexicon.getLexChoices(pattern2, 1);
+        if (choices2.length != 1) continue;
+        const id2 = choices2[0];
+        const entry2 = exetLexicon.lexicon[id2];
+        const variants = {
+          ids: [[id1, id2]],
+          entries: [[entry1, entry2]]
+        };
+        for (let j = 1; j < cls.suffixes.length; j++) {
+          const sfPair = cls.suffixes[j];
+          const pattern1 = root + sfPair[0];
+          const choices1 = exetLexicon.getLexChoices(pattern1, 1);
+          const id1 = (choices1.length == 1) ? choices1[0] : 0;
+          const entry1 = exetLexicon.lexicon[id1];
+          const pattern2 = root + sfPair[1];
+          const choices2 = exetLexicon.getLexChoices(pattern2, 1);
+          const id2 = (choices2.length == 1) ? choices2[0] : 0;
+          const entry2 = exetLexicon.lexicon[id2];
+          if (id1 == 0 && id2 == 0) continue;
+          variants.ids.push([id1, id2]);
+          variants.entries.push([entry1, entry2]);
+        }
+        allVariants[prop].pair_groups.push(variants);
+      }
+    }
+  }
+  for (const prop in regionalVarianceExtras) {
+    const cls = regionalVarianceExtras[prop];
+    allVariants[prop] = {
+      regions: cls.regions,
+      dontBanish: cls.dontBanish || null,
+      pair_groups: []
+    };
+    for (const group of cls.groups) {
+      const variants = {
+        ids: [],
+        entries: []
+      };
+      let num = 0;
+      for (const pair of group) {
+        const ids = [0, 0];
+        for (let k = 0; k < 2; k++) {
+          const pattern = pair[k].toUpperCase();
+          const choices = exetLexicon.getLexChoices(pattern);
+          for (const id of choices) {
+            const entry = exetLexicon.getLex(id);
+            if (entry == pair[k]) {
+              ids[k] = id;
+              break;
+            }
+          }
+          if (ids[k] == 0) {
+            log('Looking to map regional pair ' + JSON.stringify(pair) + ', there was no lexicon entry for: ' + pair[k], true);
+            pair[k] = '';
+          }
+        }
+        if (ids[0] == 0 && ids[1] == 0) {
+          continue;
+        }
+        variants.ids.push(ids);
+        variants.entries.push(pair);
+        num++;
+      }
+      if (num > 0) {
+        allVariants[prop].pair_groups.push(variants);
+      }
+    }
+  }
+  return allVariants;
+}
+
+
+
+// ----------------------------------------
+
+function myStem(s) {
+  const ls = s.toLowerCase();
+  if (stemOverrides.hasOwnProperty(ls)) {
+    return stemOverrides[ls];
+  }
+  return stem(s);
+}
+
+let stemGroups;
+let n;
+let stems;
+let usbrca;
+
+function getCycle(x) {
+  console.assert(x >= 0 && x < n, x, n);
+  const cycle = [x];
+  let next = stemGroups[x];
+  while (next != x) {
+    cycle.push(next);
+    next = stemGroups[next];
+    console.assert(cycle.length < 1000, cycle.length, x);
+  }
+  cycle.sort((a, b) => a - b);
+  return cycle;
+}
+
+function printCycle(cycle) {
+  let res = '[';
+  for (let i = 0; i < cycle.length; i++) {
+    if (i > 0) res += ', ';
+    res += exetLexicon.lexicon[cycle[i]];
+  }
+  return res + ']';
+}
+
+function mergeCycles(x1, x2, shouldLog='') {
+  const cycle1 = getCycle(x1);
+  console.assert(cycle1.length >= 1, cycle1.length);
+  const cycle2 = getCycle(x2);
+  console.assert(cycle2.length >= 1, cycle2.length);
+  const cycleSet1 = new Set(cycle1);
+  console.assert(cycleSet1.size == cycle1.length, cycleSet1.size, cycle1.length);
+  const cycleSet2 = new Set(cycle2);
+  console.assert(cycleSet2.size == cycle2.length, cycleSet2.size, cycle2.length);
+  const areDisjoint = cycleSet1.isDisjointFrom(cycleSet2);
+  const symdiff = cycleSet1.symmetricDifference(cycleSet2);
+  if (!areDisjoint) {
+    console.assert(cycleSet1.size == cycleSet2.size, cycleSet1.size, cycleSet2.size);
+    console.assert(symdiff.size == 0, symdiff.size);
+    return;
+  }
+  const union = cycleSet1.union(cycleSet2);
+  const unionArray = [...union];
+  unionArray.sort((a, b) => a - b);
+  if (shouldLog) {
+    console.log(shouldLog);
+    console.log('  Merging ' + printCycle(cycle1) + ' and ' + printCycle(cycle2));
+    console.log('  Merger: ' + printCycle(unionArray));
+  }
+  unionArray.push(unionArray[0]);
+  for (let i = 1; i < unionArray.length; i++) {
+    const from = unionArray[i - 1];
+    const to = unionArray[i];
+    stemGroups[from] = to;
+  }
+}
+
+function makeRegionalSwapLists(regionalVariants) {
+  log('makeRegionalSwapLists()...');
+  const regions = {};
+  for (const key in regionalVariants) {
+    for (const r in regionalVariants[key].regions) {
+      if (!regions.hasOwnProperty(r)) {
+        regions[r] = {
+          swaps: [],
+          idToSwapIndex: new Map(),
+          dontBanish: new Set(),
+        };
+      }
+    }
+  }
+  for (const key in regionalVariants) {
+    log('Processing regional key ' + key);
+    const variant = regionalVariants[key];
+    const groups = variant.pair_groups;
+    for (const group of groups) {
+      for (const idPair of group.ids) {
+        const id1 = idPair[0];
+        const id2 = idPair[1];
+        if (id1 == 0 || id2 == 0) continue;
+        const entries = [exetLexicon.getLex(id1), exetLexicon.getLex(id2)];
+        console.assert(id1 != id2, id1, id2);
+        const stemGroup1 = exetLexicon.stemGroup(id1);
+        const stemGroup2 = exetLexicon.stemGroup(id2);
+        console.assert(stemGroup1.length == stemGroup2.length &&
+                       stemGroup1.length > 0 &&
+                       stemGroup1[0] == stemGroup2[0],
+                       entries[0], entries[1],
+                       JSON.stringify(stemGroup1), JSON.stringify(stemGroup2)); 
+        for (const r in variant.regions) {
+          const x = variant.regions[r];
+          console.assert(x == 0 || x == 1, x);
+          const idToPrefer = idPair[x];
+          const idToReplace = idPair[1 - x];
+          console.assert(idToPrefer != idToReplace, idToPrefer, entries[x], idToReplace, entries[1 - x]);
+          let skip = false;
+          for (let k = 0; k < 2; k++) {
+            if (regions[r].idToSwapIndex.has(idPair[k])) {
+              const swapIndex = regions[r].idToSwapIndex.get(idPair[k]);
+              const swap = regions[r].swaps[swapIndex];
+              log('Skipping swap [' + exetLexicon.getLex(idToPrefer) + '<->' +
+                  exetLexicon.getLex(idToReplace) + '] for region ' + r + ' as ' +
+                  entries[k] + ' already has swap [' +
+                  exetLexicon.getLex(swap[0]) + '<->' + exetLexicon.getLex(swap[1]) + ']', true);
+              skip = true;
+              break;
+            }
+          }
+          if (skip) continue;
+          const swapIndex = regions[r].swaps.length;
+          regions[r].idToSwapIndex.set(idToPrefer, swapIndex);
+          regions[r].idToSwapIndex.set(idToReplace, swapIndex);
+          regions[r].swaps.push([idToPrefer, idToReplace]);
+          const dontBanish = variant.dontBanish ? (variant.dontBanish[r] ?? false) : false;
+          if ((Array.isArray(dontBanish) && dontBanish.includes(entries[1-x])) ||
+              (!Array.isArray(dontBanish) && dontBanish)) {
+            regions[r].dontBanish.add(idToReplace);
+          }
+        }
+      }
+    }
+  }
+  return regions;
+}
+
+/**
+ * TODO: add exetLexicon region-changing code. Note that applying a list of
+ *       swaps twice should restore the original state.
+ * Algo:
+ * 1. Create stems, add to exetLexicon object, call initExetLexicon().
+ * 2. Populate regional-variants pairs.
+ * 3. For each pair of words in a regional group, (not just matching pairs)
+ *    merge stem groups.
+ * 4. For each entry of 6+ length, merge stem groups with all words that have it
+ *    as a prefix.
+ * 5. Create per-region swap lists. For each region, remember any id that's
+ *    already in a swap and do not reuse it (to avoid weird corner cases
+ *    like two brit-versions mapping to the same US-version). Only include
+ *    a swap pair if we're preferring the higher-lexicon-index version.
+ *    When adding a swap pair, doublecheck via an assert that they are in the
+ *    same stem group.
+ * 6. Output the updated exetLexicon.stems and exetLexicon.regions.
+ */
+function createAndWriteStems() {
+
+  n = exetLexicon.lexicon.length;
+  log('The lexicon has ' + n + ' entries');
+
+  stems = {};
+  usbrca = [];
+
+  const lexIndex = {};
+  for (let i = 0; i < n; i++) {
+    const w = exetLexicon.lexicon[i];
+    lexIndex[w] = i;
+  }
+
+  const FIRST_AS_STEM_IN_MULTIWORD = 4;
+  let index = -1;
+  for (let w of exetLexicon.lexicon) {
+    index += 1;
+    const blankPos = w.indexOf(' ');
+    const dashPos = w.indexOf('-');
+    const quotePos = w.indexOf("'");
+    /* the smallest of the 3 will get used */
+    if (blankPos > FIRST_AS_STEM_IN_MULTIWORD) {
+      w = w.substr(0, blankPos);
+    }
+    if (dashPos > FIRST_AS_STEM_IN_MULTIWORD) {
+      w = w.substr(0, dashPos);
+    }
+    if (quotePos > FIRST_AS_STEM_IN_MULTIWORD) {
+      w = w.substr(0, quotePos);
+    }
+    const s = myStem(w);
+
+    if (!stems.hasOwnProperty(s)) {
+      stems[s] = [];
+    }
+    stems[s].push(index);
+  }
+
+  log('Populated stems, creating groups...');
+
+  stemGroups = Array(n);
+  for (let i = 0; i < n; i++) {
+    stemGroups[i] = i;
+  }
+
+  for (const s in stems) {
+    const group = stems[s];
+    if (group.length <= 1) continue;
+    group.push(group[0]);
+    for (let i = 1; i < group.length; i++) {
+      const from = group[i - 1];
+      const to = group[i];
+      console.assert(stemGroups[from] == from, from, stemGroups[from]);
+      stemGroups[from] = to;
+    }
+  }
+
+  log('Testing that every lexicon index returns a valid cycle');
+  let longestCycle = 0;
+  for (let i = 0; i < n; i++) {
+    const cycle = getCycle(i);
+    console.assert(cycle.length >= 1, i);
+    if (cycle.length > longestCycle) {
+      longestCycle = cycle.length;
+      log('longest cycle ' + printCycle(cycle) + ': ' + longestCycle, true);
+    }
+  }
+
+  exetLexicon.stems = stemGroups;
+  exetLexicon.stemsId = exetLexicon.id;
+  exetLexiconInit();
+
+  log('Creating regional variants...');
+  const regionalVariants = getRegionalVariants();
+
+  log('Merging regional variant stem groups...');
+  for (const key in regionalVariants) {
+    const groups = regionalVariants[key].pair_groups;
+    for (const group of groups) {
+      const idsSet = new Set();
+      for (const idPair of group.ids) {
+        if (idPair[0] > 0) idsSet.add(idPair[0]);
+        if (idPair[1] > 0) idsSet.add(idPair[1]);
+      }
+      const idsSetArray = [...idsSet];
+      for (let x1 = 0; x1 < idsSetArray.length; x1++) {
+        const id1 = idsSetArray[x1];
+        for (let x2 = x1 + 1; x2 < idsSetArray.length; x2++) {
+          const id2 = idsSetArray[x2];
+          mergeCycles(id1, id2);
+        }
+      }
+    }
+  }
+
+  /**
+   * Reminder to self: "5+" woould be too aggressive, don't do it.
+   * Eg, it will do brandy->brand.
+   */
+  log('Merging all 6+-prefix sharers\' stem groups...');
+  const sortedLexicon = new Array(exetLexicon.lexicon.length);
+  for (let i = 0; i < exetLexicon.lexicon.length; i++) {
+    sortedLexicon[i] = i;
+  }
+  sortedLexicon.sort((a, b) => exetLexicon.lexicon[a].localeCompare(exetLexicon.lexicon[b]));
+  let start = 0;
+  let prefixIdx = sortedLexicon[start];
+  let prefix = exetLexicon.lexicon[prefixIdx];
+  let prefixUpper = prefix.toUpperCase();
+  for (let i = 1; i < sortedLexicon.length; i++) {
+    const idx = sortedLexicon[i];
+    const entry = exetLexicon.lexicon[idx];
+    const entryUpper = entry.toUpperCase();
+    if (prefix.length >= 6 && entryUpper.startsWith(prefixUpper)) {
+      // mergeCycles(prefixIdx, idx, 'Because [' + prefix + '] extends to [' + entry + ']');
+      mergeCycles(prefixIdx, idx);
+    } else {
+      prefixIdx = idx;
+      prefix = entry;
+      prefixUpper = entryUpper;
+    }
+  }
+
+  log('Merging for some suffixes missed by the stemming algo...');
+  /**
+   * Supplement the stemming algo as it seems to miss these suffixes.
+   * Only use suffixes that are preceded by entire words without
+   * any mutations and are at least of length 4. (Note that lengths
+   * 6 and above will already be covered by the previous block of code).
+   * Keep sorted by non-increasing length.
+   */
+  const commonSuffixes = [
+    'aholics',
+    'aholic',
+    'ships',
+    'less',
+    'like',
+    'ship',
+    'some',
+    'ward',
+    'wise',
+  ];
+  /**
+   * Dealing with common prefixes like non-, un- is tempting but
+   * don't do it: it leads to LOTS of false positive mergers.
+   */
+  for (let idx = 0; idx < exetLexicon.lexicon.length; idx++) {
+    const w = exetLexicon.lexicon[idx];
+    for (const suff of commonSuffixes) {
+      if (w.endsWith(suff)) {
+        const pref = w.substr(0, w.length - suff.length);
+        if (pref.length < 4) continue;
+        if (pref.indexOf(' ') >= 0) continue;
+        if (pref.indexOf('-') >= 0) continue;
+        if (pref.indexOf("'") >= 0) continue;
+        const inLex = exetLexicon.getLexChoices(pref.toUpperCase(), 1);
+        if (inLex.length == 1) {
+          mergeCycles(idx, inLex[0], 'Because [' + w + '] has suffix [' + suff + ']');
+          break;
+        }
+      }
+    }
+  }
+
+  log('Post-mergers, re-testing that every lexicon index returns a valid cycle');
+  longestCycle = 0;
+  for (let i = 0; i < n; i++) {
+    const cycle = getCycle(i);
+    console.assert(cycle.length >= 1, i);
+    if (cycle.length > longestCycle) {
+      longestCycle = cycle.length;
+      log('longest cycle ' + printCycle(cycle) + ': ' + longestCycle, true);
+    }
+  }
+
+  log('Creating regional swap-lists...');
+  const regions = makeRegionalSwapLists(regionalVariants);
+  exetLexicon.regions = {};
+  for (const r in regions) {
+    exetLexicon.regions[r] = {
+      swaps: regions[r].swaps,
+      dontBanish: regions[r].dontBanish
+    };
+  }
+
+  log('Writing ' + lexStemsFile);
+  let stemsText = `exetLexicon = {...((typeof exetLexicon == "object" && exetLexicon) ? exetLexicon : {}), ...JSON.parse(\`{
+  "stemsId": "${exetLexicon.id}",
+  "stems": [
+    `;
+
+  for (let i = 0; i < n; i++) {
+    if (i > 0) {
+      stemsText += ',';
+      if ((i % 10) == 0) {
+        stemsText += "\n    ";
+      }
+    }
+    stemsText += '' + stemGroups[i];
+  }
+  stemsText += `
+  ],`;
+
+  stemsText += `
+  "regions": {`;
+  const rlist = Object.keys(exetLexicon.regions);
+  for (let x = 0; x < rlist.length; x++) {
+    const region = rlist[x];
+    if (x > 0) stemsText += ',';
+    stemsText += `
+    "${region}":  {
+      "swaps": [
+        `;
+    for (let y = 0; y < exetLexicon.regions[region].swaps.length; y++) {
+      if (y > 0) {
+        stemsText += ',';
+        if ((y % 10) == 0) {
+          stemsText += "\n        ";
+        }
+      }
+      const pair = exetLexicon.regions[region].swaps[y];
+      stemsText += '[' + pair[0] + ',' + pair[1] + ']';
+    }
+    stemsText += `
+      ],
+      "dontBanish": [
+        `;
+    let y = 0;
+    for (const keepIdx of exetLexicon.regions[region].dontBanish) {
+      if (y > 0) {
+        stemsText += ',';
+        if ((y % 10) == 0) {
+          stemsText += "\n        ";
+        }
+      }
+      stemsText += '' + keepIdx;
+      y++;
+    }
+    stemsText += `
+      ]}`;
+  }
+  stemsText += `
+  }`;
+
+  stemsText += `
+}\`)};`;
+
+  // stemsText += '\n' + getVariants();
+
+  save(stemsText, lexStemsFile);
+
+  log('Done!');
+}
+
+</script>
+
+</body>
+</html>
